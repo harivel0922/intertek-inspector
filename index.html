@@ -79,6 +79,10 @@ border-radius:16px;padding:26px;margin-bottom:22px;min-height:150px;display:flex
 .kpis{grid-template-columns:repeat(2,1fr);gap:8px}.formgrid{grid-template-columns:1fr}.hero{min-height:130px;padding:18px}.hero h2{font-size:21px}
 .card{padding:12px}.table-wrap{overflow-x:auto}.table{min-width:700px}.login-card{padding:30px 22px 35px}
 }
+
+/* V6 WORKFLOW */
+.workflow-steps{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.step{padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;font-size:12px;font-weight:800}.step.done{background:#111;color:#fff;border-color:#111}.step.current{background:#f5c400;color:#111;border-color:#f5c400}.subcard{background:#fafafa;border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px}.notice{background:#fff8d6;border-left:4px solid #f5c400;padding:12px;border-radius:8px}.danger-note{background:#fff1f1;border-left:4px solid #d64545;padding:12px;border-radius:8px}.mini{font-size:11px;color:var(--muted)}
+
 </style>
 
 <style id="intertek-official-theme">
@@ -214,6 +218,7 @@ a{color:#8a6a00}
     <div class="brand">INTERTEK<small>INSPECTOR</small></div>
     <div class="nav">
       <button class="active" onclick="showPage('dashboard',this)">📊 Dashboard</button>
+      <button onclick="showPage('nominations',this)">📥 Nominations</button>
       <button onclick="showPage('jobs',this)">📋 All Jobs</button>
       <button onclick="showPage('create',this)">➕ Create Job</button>
       <button onclick="showPage('vessels',this)">🚢 Vessels</button>
@@ -236,12 +241,17 @@ a{color:#8a6a00}
 </div>
 
 <div id="toast" class="toast hidden"></div><div style="display:none">INTERTEK INSPECTOR • Yellow/Black Theme</div>
-<div id="buildVersion" style="display:none">INTERTEK INSPECTOR V4</div>
+<div id="buildVersion" style="display:none">INTERTEK INSPECTOR V6 • FULL JOB WORKFLOW</div>
 
 <script>
 const STORAGE_KEY='intertek_survey_jobs_v1';
+const NOMINATION_KEY='intertek_nominations_v1';
 const SESSION_KEY='intertek_session_v1';
 const ADMIN_USERS_KEY='intertek_admin_users_v1';
+const JOB_CONTROL_KEY='intertek_job_control_v1';
+const PORTAL_KEY='intertek_customer_portals_v1';
+const DEFAULT_JOB_CONTROL={prefix:'ITSPK/H',nextNo:2001,year:2026};
+const DEFAULT_PORTALS=[{client:'EQUINOR ASA',url:'',active:true}];
 const DEFAULT_ADMIN={username:'harivel.ganisan@intertek.com',password:'Intertek@2026',role:'Admin',name:'Harivel Ganisan'};
 
 function getUsers(){
@@ -325,16 +335,141 @@ function startApp(user){
   showPage('dashboard',document.querySelector('.nav button'));
 }
 
+function getNominations(){
+  try{return JSON.parse(localStorage.getItem(NOMINATION_KEY)||'[]')}catch(e){return []}
+}
+function saveNominations(items){localStorage.setItem(NOMINATION_KEY,JSON.stringify(items))}
+function nextNominationNo(){
+  const y=new Date().getFullYear(), items=getNominations(); let max=0;
+  items.forEach(n=>{const m=String(n.nominationNo||'').match(/NOM-(\d{4})-(\d+)/);if(m&&+m[1]===y)max=Math.max(max,+m[2])});
+  return `NOM-${y}-${String(max+1).padStart(4,'0')}`;
+}
+function readNominationFile(input){
+  const file=input.files&&input.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const text=String(reader.result||'');
+    document.getElementById('nominationEmailText').value=text;
+    parseNominationText();
+  };
+  reader.readAsText(file);
+}
+function parseNominationText(){
+  const t=(document.getElementById('nominationEmailText')?.value||'');
+  const pick=(patterns)=>{for(const re of patterns){const m=t.match(re);if(m)return m[1].trim()}return ''};
+  const set=(id,v)=>{if(v && document.getElementById(id))document.getElementById(id).value=v};
+  set('nomVessel',pick([/PERFORMING VESSEL:\s*([^\n\r]+)/i,/Vessel\s*[:：]\s*([^\n\r]+)/i]));
+  set('nomClient',pick([/COST SHARING:\s*[^\n\r]*?([A-Z][A-Z0-9 .&-]{2,})/i,/SHIPPER:\s*([^\n\r]+)/i]));
+  set('nomCargo',pick([/CARGO DESCRIPTION:\s*([^\n\r]+)/i,/Product\s*[:：]\s*([^\n\r]+)/i]));
+  set('nomQuantity',pick([/CARGO QUANTITY:\s*([^\n\r]+)/i,/Quantity\s*[:：]\s*([^\n\r]+)/i]));
+  set('nomLaycan',pick([/LOADING RANGE:\s*([^\n\r]+)/i,/LAYCAN.*?[:：]\s*([^\n\r]+)/i]));
+  set('nomPort',pick([/LOAD PORT:\s*([^\n\r]+)/i,/Port\s*[:：]\s*([^\n\r]+)/i]));
+  set('nomAgent',pick([/AGENT:\s*([^\n\r]+)/i]));
+  set('nomCustomerRef',pick([/Ref(?:erence)?(?: Number)?\s*[:：]\s*([0-9A-Za-z &-]+)/i,/Your Ref\s*[:：]\s*([^\n\r]+)/i]));
+  toast('Nomination details extracted where recognised. Please review before saving.');
+}
+function saveNomination(){
+  const n={
+    nominationNo:document.getElementById('nominationNo').value,
+    receivedDate:document.getElementById('nomReceivedDate').value,
+    client:document.getElementById('nomClient').value.trim(),
+    vessel:document.getElementById('nomVessel').value.trim(),
+    imo:document.getElementById('nomIMO').value.trim(),
+    category:document.getElementById('nomCategory').value,
+    workType:document.getElementById('nomWorkType').value,
+    operation:document.getElementById('nomOperation').value,
+    cargo:document.getElementById('nomCargo').value.trim(),
+    quantity:document.getElementById('nomQuantity').value.trim(),
+    laycan:document.getElementById('nomLaycan').value.trim(),
+    port:document.getElementById('nomPort').value.trim(),
+    agent:document.getElementById('nomAgent').value.trim(),
+    customerRef:document.getElementById('nomCustomerRef').value.trim(),
+    cost:document.getElementById('nomCost').value.trim(),
+    surveyType:document.getElementById('nomSurveyType').value.trim(),
+    remarks:document.getElementById('nomRemarks').value.trim(),
+    emailText:document.getElementById('nominationEmailText').value,
+    status:'Received', createdAt:new Date().toISOString()
+  };
+  if(!n.client||!n.vessel||!n.category||!n.workType){toast('Please enter Client, Vessel, Category and Work Type');return}
+  const items=getNominations(); items.push(n); saveNominations(items);
+  toast(n.nominationNo+' saved as RECEIVED');
+  setTimeout(()=>showPage('nominations',document.querySelectorAll('.nav button')[1]),400);
+}
+function confirmNomination(no){
+  const items=getNominations(); const idx=items.findIndex(x=>x.nominationNo===no); if(idx<0)return;
+  const n=items[idx];
+  if(n.status==='Confirmed'){toast('Nomination already confirmed');return}
+  const jobs=getJobs(); const job={
+    jobNo:consumeNextJobNo(), date:n.receivedDate||new Date().toISOString().slice(0,10), client:n.client, vessel:n.vessel, imo:n.imo,
+    category:n.category, workType:n.workType, operation:n.operation, cargo:n.cargo, quantity:n.quantity, laycan:n.laycan,
+    port:n.port, surveyor:'', surveyorEmail:'', ref:n.customerRef, remarks:n.remarks, status:'Confirmed', nominationNo:n.nominationNo,
+    customerJobId:'', customerUploadStatus:'Not Ready', customerPortal:'', customerSubmissionDate:'', confirmationDate:new Date().toISOString(),
+    attendanceStatus:'Pending', surveyStatus:'Pending', documentsStatus:'Pending', closedDate:''
+  };
+  jobs.push(job); saveJobs(jobs);
+  items[idx]={...n,status:'Confirmed',intertekJobNo:job.jobNo,confirmedAt:job.confirmationDate}; saveNominations(items);
+  toast('Job confirmed: '+job.jobNo);
+  setTimeout(()=>showPage('jobs',document.querySelectorAll('.nav button')[2]),500);
+}
+function renderNominations(c){
+  const items=getNominations().slice().reverse();
+  c.innerHTML=`<div class="card"><div class="toolbar"><div><h3>Nomination Inbox</h3><div class="muted">Client nomination → manager review → confirmation → Intertek job number</div></div><button class="btn" onclick="renderNewNomination()">+ New Nomination</button></div>${items.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Nomination</th><th>Received</th><th>Client</th><th>Vessel</th><th>Operation</th><th>Laycan</th><th>Status</th><th>Action</th></tr></thead><tbody>${items.map(n=>`<tr><td><b>${esc(n.nominationNo)}</b></td><td>${esc(n.receivedDate)}</td><td>${esc(n.client)}</td><td>${esc(n.vessel)}</td><td>${esc(n.workType)} / ${esc(n.operation)}</td><td>${esc(n.laycan)}</td><td><span class="status ${n.status==='Confirmed'?'complete':'open'}">${esc(n.status)}</span></td><td>${n.status==='Received'?`<button class="btn" onclick="confirmNomination('${esc(n.nominationNo)}')">Confirm Job</button>`:`<b>${esc(n.intertekJobNo||'Confirmed')}</b>`}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No nominations received yet.</div>'}</div>`;
+}
+function renderNewNomination(){
+  const c=document.getElementById('content'); const no=nextNominationNo(), today=new Date().toISOString().slice(0,10);
+  c.innerHTML=`<div class="card"><div class="card-head"><div><h3>New Client Nomination</h3><div class="muted">Start here when a nomination arrives by email.</div></div><span class="status open">RECEIVED</span></div>
+  <div class="card" style="background:#fff8d6"><b>Import nomination email</b><p class="muted">You can paste the email text or choose a text/HTML/EML file. The system will extract recognised details for review.</p><input type="file" accept=".txt,.html,.htm,.eml" onchange="readNominationFile(this)"><textarea id="nominationEmailText" rows="7" placeholder="Paste client nomination email here..." style="margin-top:10px;width:100%"></textarea><button class="btn secondary" style="margin-top:8px" onclick="parseNominationText()">Extract Details</button></div>
+  <div class="formgrid">
+    <div class="field"><label>Nomination No.</label><input id="nominationNo" value="${no}" readonly></div><div class="field"><label>Received Date</label><input id="nomReceivedDate" type="date" value="${today}"></div>
+    <div class="field"><label>Client *</label><input id="nomClient" placeholder="EQUINOR ASA"></div><div class="field"><label>Vessel *</label><input id="nomVessel" placeholder="GAS INFINITY"></div>
+    <div class="field"><label>IMO No.</label><input id="nomIMO" placeholder="IMO number"></div><div class="field"><label>Job Category *</label><select id="nomCategory" onchange="updateNominationTypes()"><option value="">Select Category</option><option>Bunkering</option><option>Cargo</option><option>LPG</option></select></div>
+    <div class="field"><label>Work Type *</label><select id="nomWorkType" onchange="updateNominationOperations()" disabled><option>Select category first</option></select></div><div class="field"><label>Operation / Product</label><select id="nomOperation" disabled><option>Select work type first</option></select></div>
+    <div class="field"><label>Cargo / Product</label><input id="nomCargo" placeholder="Pressurized LPG Mixture"></div><div class="field"><label>Quantity</label><input id="nomQuantity" placeholder="1042 MT +/- 5%"></div>
+    <div class="field"><label>Laycan / ETA</label><input id="nomLaycan" placeholder="21-22 Sep 2026"></div><div class="field"><label>Port / Terminal</label><input id="nomPort" placeholder="GES Klang Terminal, Port Klang"></div>
+    <div class="field"><label>Agent</label><input id="nomAgent" placeholder="MV Maritime"></div><div class="field"><label>Customer Reference</label><input id="nomCustomerRef" placeholder="313698 & 313696"></div>
+    <div class="field"><label>Survey Type</label><input id="nomSurveyType" placeholder="Quantity"></div><div class="field"><label>Cost Sharing</label><input id="nomCost" placeholder="100% EQUINOR"></div>
+  </div><div class="field"><label>Remarks / Special Instructions</label><textarea id="nomRemarks" rows="5" placeholder="Final quality based on paper calculation..."></textarea></div>
+  <button class="btn" onclick="saveNomination()">Save Nomination</button> <button class="btn secondary" onclick="showPage('nominations',document.querySelectorAll('.nav button')[1])">Cancel</button></div>`;
+}
+function updateNominationTypes(){
+  const c=document.getElementById('nomCategory'), w=document.getElementById('nomWorkType'), o=document.getElementById('nomOperation'); if(!c||!w||!o)return;
+  const cat=c.value; w.disabled=!cat; o.disabled=true; o.innerHTML='<option>Select work type first</option>';
+  let types=cat==='Bunkering'?['Bunkering']:cat==='Cargo'?['Chemical','UCO']:cat==='LPG'?['Discharge','Loading','Pipeline Transfer','ITT','Month-End Inventory']:[];
+  w.innerHTML='<option value="">Select Work Type</option>'+types.map(x=>`<option>${x}</option>`).join('');
+}
+function updateNominationOperations(){
+  const c=document.getElementById('nomCategory'), w=document.getElementById('nomWorkType'), o=document.getElementById('nomOperation'); if(!c||!w||!o)return;
+  const cat=c.value, work=w.value; let ops=[];
+  if(cat==='Bunkering')ops=['Bunkering'];
+  if(cat==='Cargo'&&work==='Chemical')ops=['Discharge'];
+  if(cat==='Cargo'&&work==='UCO')ops=['Loading'];
+  if(cat==='LPG'&&work==='Discharge')ops=['Pressurized LPG Mixture'];
+  if(cat==='LPG'&&work==='Loading')ops=['Pressurized LPG Mixture'];
+  if(cat==='LPG'&&['Pipeline Transfer','ITT','Month-End Inventory'].includes(work))ops=['LPG'];
+  o.disabled=!ops.length; o.innerHTML=ops.map(x=>`<option>${x}</option>`).join('');
+}
+
 function getJobs(){
   try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch(e){return []}
 }
 function saveJobs(jobs){localStorage.setItem(STORAGE_KEY,JSON.stringify(jobs))}
-function nextJobNo(){
-  const y=new Date().getFullYear(), jobs=getJobs();
-  let max=0;
-  jobs.forEach(j=>{const m=String(j.jobNo||'').match(/ITK-(\d{4})-(\d+)/);if(m&&+m[1]===y)max=Math.max(max,+m[2])});
-  return `ITK-${y}-${String(max+1).padStart(4,'0')}`;
+function getJobControl(){
+  try{const c=JSON.parse(localStorage.getItem(JOB_CONTROL_KEY)||'null'); if(c&&c.prefix&&c.nextNo)return {...DEFAULT_JOB_CONTROL,...c};}catch(e){}
+  localStorage.setItem(JOB_CONTROL_KEY,JSON.stringify(DEFAULT_JOB_CONTROL)); return {...DEFAULT_JOB_CONTROL};
 }
+function saveJobControl(c){localStorage.setItem(JOB_CONTROL_KEY,JSON.stringify(c))}
+function nextJobNo(){
+  const c=getJobControl();
+  return `${c.prefix}${String(c.nextNo).padStart(4,'0')}/${c.year}`;
+}
+function consumeNextJobNo(){
+  const c=getJobControl(), no=`${c.prefix}${String(c.nextNo).padStart(4,'0')}/${c.year}`;
+  c.nextNo=Number(c.nextNo)+1; saveJobControl(c); return no;
+}
+function getPortals(){try{const x=JSON.parse(localStorage.getItem(PORTAL_KEY)||'null');return Array.isArray(x)?x:DEFAULT_PORTALS}catch(e){return DEFAULT_PORTALS}}
+function savePortals(x){localStorage.setItem(PORTAL_KEY,JSON.stringify(x))}
+function getPortalFor(client){return getPortals().find(x=>String(x.client).toLowerCase()===String(client||'').toLowerCase()&&x.active)||null}
+
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function toast(msg){
   const t=document.getElementById('toast');t.textContent=msg;t.classList.remove('hidden');
@@ -344,10 +479,11 @@ function toast(msg){
 function showPage(page,btn){
   document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
   if(btn)btn.classList.add('active');
-  const titles={dashboard:'Dashboard',jobs:'All Jobs',create:'Create New Job',vessels:'Vessels',clients:'Clients',documents:'Documents',reports:'Reports',admin:'Admin Control',settings:'Settings'};
+  const titles={dashboard:'Dashboard',nominations:'Nominations',jobs:'All Jobs',create:'Create New Job',vessels:'Vessels',clients:'Clients',documents:'Documents',reports:'Reports',admin:'Admin Control',settings:'Settings'};
   document.getElementById('pageTitle').textContent=titles[page]||'Dashboard';
   const c=document.getElementById('content');
   if(page==='dashboard')renderDashboard(c);
+  else if(page==='nominations')renderNominations(c);
   else if(page==='jobs')renderJobs(c);
   else if(page==='create')renderCreate(c);
   else if(page==='admin')renderAdmin(c);
@@ -359,13 +495,14 @@ function renderDashboard(c){
   const today=new Date().toISOString().slice(0,10);
   c.innerHTML=`
     <div class="hero"><div><h2>Intertek Inspector</h2><p>Manage inspection and marine survey jobs from one place.</p></div>
-    <button class="btn" onclick="showPage('create',document.querySelectorAll('.nav button')[2])">+ Create New Job</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="showPage('nominations',document.querySelectorAll('.nav button')[1])">📥 Nomination Inbox</button><button class="btn" onclick="showPage('create',document.querySelectorAll('.nav button')[3])">+ Create New Job</button></div></div>
     <div class="kpis">
       <div class="kpi"><div class="label">TOTAL JOBS</div><div class="num">${jobs.length}</div></div>
       <div class="kpi"><div class="label">OPEN JOBS</div><div class="num">${open}</div></div>
       <div class="kpi"><div class="label">COMPLETED</div><div class="num">${done}</div></div>
       <div class="kpi"><div class="label">TODAY</div><div class="num">${jobs.filter(j=>j.date===today).length}</div></div>
       <div class="kpi"><div class="label">CATEGORIES</div><div class="num">${new Set(jobs.map(j=>j.category)).size}</div></div>
+      <div class="kpi"><div class="label">PENDING NOMINATIONS</div><div class="num">${getNominations().filter(n=>n.status==='Received').length}</div></div>
     </div>
     <div class="card"><div class="card-head"><h3>Locked Job Structure</h3></div>
 <div style="display:grid;gap:7px;font-size:13px">
@@ -374,27 +511,48 @@ function renderDashboard(c){
   <div><b>LPG</b> → Discharge / Loading / Pipeline Transfer / ITT / Month-End Inventory</div>
 </div></div>
 <div class="card"><div class="card-head"><h3>Recent Jobs</h3>
-    <button class="btn secondary" onclick="showPage('jobs',document.querySelectorAll('.nav button')[1])">View All</button></div>
+    <button class="btn secondary" onclick="showPage('jobs',document.querySelectorAll('.nav button')[2])">View All</button></div>
     ${jobTable(jobs.slice().reverse().slice(0,8))}</div>
-    <div class="footer">Base V2 • Job framework ready for document modules and calculations.</div>`;
+    <div class="footer">V6 • Nomination → Confirmation → Surveyor → Customer Submission workflow.</div>`;
 }
 
 function jobTable(jobs){
   if(!jobs.length)return '<div class="empty">No jobs created yet.</div>';
-  return `<div class="table-wrap"><table class="table"><thead><tr>
-  <th>Job No</th><th>Customer Job ID</th><th>Date</th><th>Client</th><th>Vessel</th><th>Category</th><th>Work Type</th><th>Operation</th><th>Customer Upload</th><th>Status</th>
-  </tr></thead><tbody>${jobs.map(j=>`<tr>
-  <td><b>${esc(j.jobNo)}</b></td><td>${esc(j.customerJobId||'-')}</td><td>${esc(j.date)}</td><td>${esc(j.client)}</td><td>${esc(j.vessel)}</td>
-  <td>${esc(j.category)}</td><td>${esc(j.workType)}</td><td>${esc(j.operation)}</td><td>${esc(j.customerUploadStatus||'Not Ready')}</td><td><span class="status ${j.status==='Completed'?'complete':'open'}">${esc(j.status)}</span></td>
-  </tr>`).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap"><table class="table"><thead><tr><th>Job No</th><th>Client</th><th>Vessel</th><th>Operation</th><th>Surveyor</th><th>Customer ID</th><th>Status</th><th>Open</th></tr></thead><tbody>${jobs.map(j=>`<tr>
+  <td><b>${esc(j.jobNo)}</b><div class="mini">${esc(j.nominationNo||'')}</div></td><td>${esc(j.client)}</td><td>${esc(j.vessel)}</td><td>${esc(j.workType)} / ${esc(j.operation)}</td><td>${esc(j.surveyor||'Not assigned')}</td><td>${esc(j.customerJobId||'—')}</td>
+  <td><span class="status ${j.status==='Completed'?'complete':'open'}">${esc(j.status)}</span></td><td><button class="btn secondary" onclick="renderJobDetail('${esc(j.jobNo)}')">Open</button></td></tr>`).join('')}</tbody></table></div>`;
 }
-
 function renderJobs(c){
   const jobs=getJobs();
-  c.innerHTML=`<div class="card"><div class="toolbar"><h3>All Jobs</h3>
-  <button class="btn" onclick="showPage('create',document.querySelectorAll('.nav button')[2])">+ Create Job</button></div>
-  ${jobTable(jobs.slice().reverse())}</div>`;
+  c.innerHTML=`<div class="card"><div class="toolbar"><div><h3>All Jobs</h3><div class="muted">Confirmed nominations become Intertek jobs and continue through survey and customer submission.</div></div><button class="btn" onclick="showPage('nominations',document.querySelectorAll('.nav button')[1])">📥 Nominations</button></div>${jobTable(jobs.slice().reverse())}</div>`;
 }
+function renderJobDetail(jobNo){
+  const j=getJobs().find(x=>x.jobNo===jobNo); if(!j){toast('Job not found');return;}
+  const portal=getPortalFor(j.client); const c=document.getElementById('content');
+  const stages=[['Confirmed',true],['Surveyor Assigned',!!j.surveyor],['Attendance',j.attendanceStatus==='Completed'],['Survey Completed',j.surveyStatus==='Completed'],['Customer Upload',j.customerUploadStatus==='Uploaded'],['Closed',j.status==='Completed']];
+  c.innerHTML=`<div class="card"><div class="toolbar"><div><h3>${esc(j.jobNo)}</h3><div class="muted">${esc(j.client)} · ${esc(j.vessel)} · ${esc(j.operation||'')}</div></div><button class="btn secondary" onclick="showPage('jobs',document.querySelectorAll('.nav button')[2])">← All Jobs</button></div>
+  <div class="workflow-steps">${stages.map((x,i)=>`<span class="step ${x[1]?'done':(i===1?'current':'')}">${i+1}. ${x[0]}</span>`).join('')}</div>
+  <div class="formgrid">
+   <div class="field"><label>Intertek Job No.</label><input value="${esc(j.jobNo)}" readonly></div>
+   <div class="field"><label>Nomination No.</label><input value="${esc(j.nominationNo||'')}" readonly></div>
+   <div class="field"><label>Client</label><input value="${esc(j.client)}" readonly></div>
+   <div class="field"><label>Vessel</label><input value="${esc(j.vessel)}" readonly></div>
+   <div class="field"><label>Operation</label><input value="${esc(j.workType||'')} / ${esc(j.operation||'')}" readonly></div>
+   <div class="field"><label>Laycan / ETA</label><input value="${esc(j.laycan||'')}" readonly></div>
+   <div class="field"><label>Port / Terminal</label><input value="${esc(j.port||'')}" readonly></div>
+   <div class="field"><label>Customer Reference</label><input value="${esc(j.ref||'')}" readonly></div>
+  </div>
+  <div class="subcard"><h3>1. Surveyor Assignment</h3><div class="formgrid"><div class="field"><label>Surveyor Name</label><input id="detailSurveyor" value="${esc(j.surveyor||'')}" placeholder="Surveyor name"></div><div class="field"><label>Intertek Email</label><input id="detailSurveyorEmail" value="${esc(j.surveyorEmail||'')}" placeholder="surveyor@intertek.com"></div></div><button class="btn" onclick="assignSurveyor('${esc(j.jobNo)}')">Save Surveyor Assignment</button></div>
+  <div class="subcard"><h3>2. Attendance & Survey</h3><div class="formgrid"><div class="field"><label>Attendance</label><select id="detailAttendance"><option ${j.attendanceStatus==='Pending'?'selected':''}>Pending</option><option ${j.attendanceStatus==='Completed'?'selected':''}>Completed</option></select></div><div class="field"><label>Survey Status</label><select id="detailSurvey"><option ${j.surveyStatus==='Pending'?'selected':''}>Pending</option><option ${j.surveyStatus==='Completed'?'selected':''}>Completed</option></select></div><div class="field"><label>Documents</label><select id="detailDocs"><option ${j.documentsStatus==='Pending'?'selected':''}>Pending</option><option ${j.documentsStatus==='Completed'?'selected':''}>Completed</option></select></div></div><button class="btn" onclick="saveJobProgress('${esc(j.jobNo)}')">Save Progress</button></div>
+  <div class="subcard"><h3>3. Customer System Submission</h3><div class="notice"><b>Customer Job ID is separate from the Intertek Job No.</b><br>The Customer Job ID is used for the customer system upload/submission only.</div><div class="formgrid" style="margin-top:12px"><div class="field"><label>Customer Job ID</label><input id="detailCustomerJobId" value="${esc(j.customerJobId||'')}" placeholder="Import / enter customer job ID"></div><div class="field"><label>Customer Portal</label><input value="${esc((portal&&portal.url)||j.customerPortal||'Not configured')}" readonly></div><div class="field"><label>Upload Status</label><select id="detailUploadStatus"><option ${j.customerUploadStatus==='Not Ready'?'selected':''}>Not Ready</option><option ${j.customerUploadStatus==='Ready for Upload'?'selected':''}>Ready for Upload</option><option ${j.customerUploadStatus==='Uploaded'?'selected':''}>Uploaded</option></select></div></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn" onclick="saveCustomerSubmission('${esc(j.jobNo)}')">Save Customer ID / Status</button>${portal&&portal.url?`<button class="btn secondary" onclick="window.open('${esc(portal.url)}','_blank')">🌐 Open Customer System</button>`:''}</div><div class="mini" style="margin-top:8px">This static application does not store customer passwords.</div></div>
+  <div class="subcard"><h3>4. Close Job</h3><button class="btn" onclick="closeJob('${esc(j.jobNo)}')">✓ Close Job</button></div>
+  </div>`;
+}
+function updateJob(jobNo,patch){const jobs=getJobs(),i=jobs.findIndex(x=>x.jobNo===jobNo);if(i<0)return null;jobs[i]={...jobs[i],...patch};saveJobs(jobs);return jobs[i]}
+function assignSurveyor(jobNo){const name=document.getElementById('detailSurveyor').value.trim(),email=document.getElementById('detailSurveyorEmail').value.trim();if(!name||!email){toast('Enter surveyor name and Intertek email');return}updateJob(jobNo,{surveyor:name,surveyorEmail:email,status:'Assigned'});toast('Surveyor assigned');renderJobDetail(jobNo)}
+function saveJobProgress(jobNo){updateJob(jobNo,{attendanceStatus:document.getElementById('detailAttendance').value,surveyStatus:document.getElementById('detailSurvey').value,documentsStatus:document.getElementById('detailDocs').value});toast('Job progress saved');renderJobDetail(jobNo)}
+function saveCustomerSubmission(jobNo){const id=document.getElementById('detailCustomerJobId').value.trim(),st=document.getElementById('detailUploadStatus').value;if(st!=='Not Ready'&&!id){toast('Customer Job ID is required before customer submission');return}updateJob(jobNo,{customerJobId:id,customerUploadStatus:st,customerSubmissionDate:st==='Uploaded'?new Date().toISOString():''});toast('Customer submission details saved');renderJobDetail(jobNo)}
+function closeJob(jobNo){const j=getJobs().find(x=>x.jobNo===jobNo);if(!j)return;if(j.customerUploadStatus!=='Uploaded'){toast('Customer upload must be marked Uploaded before closing');return}updateJob(jobNo,{status:'Completed',closedDate:new Date().toISOString()});toast('Job closed');renderJobDetail(jobNo)}
 
 function renderCreate(c){
   const jobNo=nextJobNo();
@@ -417,10 +575,8 @@ function renderCreate(c){
     <div class="field"><label>Port / Terminal</label><input id="jobPort" placeholder="Port / terminal"></div>
     <div class="field"><label>Surveyor</label><input id="jobSurveyor" placeholder="Surveyor name"></div>
     <div class="field"><label>PO / Reference</label><input id="jobRef" placeholder="PO / client reference"></div>
-    <div class="field"><label>Customer Job ID</label><input id="jobCustomerId" placeholder="Only for customer system upload" readonly><input id="customerJobIdFile" type="file" accept=".txt,.csv" style="display:none" onchange="importCustomerJobId(event)"><button type="button" class="btn secondary" style="margin-top:6px" onclick="document.getElementById('customerJobIdFile').click()">Import Customer Job ID</button></div>
   </div>
   <div class="field"><label>Remarks</label><textarea id="jobRemarks" rows="4" placeholder="Initial job remarks"></textarea></div>
-  <div class="card" style="background:#fffbea;border-left:4px solid #ffdd00;margin-top:12px"><h3 style="margin-top:0">Customer System Submission</h3><p style="margin:0 0 10px;color:#555;font-size:13px">Customer Job ID is kept separately from the Intertek Job No. It is used only when submitting/uploading this job to the customer system.</p><div class="formgrid"><div class="field"><label>Customer Portal</label><input id="jobCustomerPortal" placeholder="Customer system URL (optional)"></div><div class="field"><label>Upload Status</label><select id="jobCustomerUploadStatus"><option>Not Ready</option><option>Ready for Upload</option><option>Uploaded to Customer System</option></select></div></div></div>
   <div id="workflowPreview" class="card" style="background:#f7fafc;margin-top:12px">
     <b>Workflow</b><div class="empty" style="padding:18px">Select a Job Category to begin.</div>
   </div>
@@ -533,7 +689,7 @@ function openPipelineTransferWorkflow(){
     ${pipelineField('ptNodStatus','NOD Status','Auto calculated')}${pipelineField('ptNodMetric','NOD Metric','Metric tons (in Air)')}
     ${pipelineField('ptNodDifference','NOD Difference','', 'number','0.001')}${pipelineField('ptNodPercent','NOD %','', 'number','0.01')}
   </div><div class="footer">The NOD section is populated from the quantity comparison and can be reviewed before final issue.</div></div>
-  <div class="actions" style="margin-top:14px"><button class="btn" onclick="savePipelineTransferJob()">Save Pipeline Transfer Job</button><button class="btn secondary" onclick="previewPipelineTransferReport()">Preview Report Package</button><button class="btn secondary" onclick="showPage('create',document.querySelectorAll('.nav button')[2])">Back</button></div>
+  <div class="actions" style="margin-top:14px"><button class="btn" onclick="savePipelineTransferJob()">Save Pipeline Transfer Job</button><button class="btn secondary" onclick="previewPipelineTransferReport()">Preview Report Package</button><button class="btn secondary" onclick="showPage('create',document.querySelectorAll('.nav button')[3])">Back</button></div>
   <div id="ptReportPreview" style="margin-top:14px"></div>
   </div>`;
   window._pipelineBase=base;
@@ -557,7 +713,7 @@ function savePipelineTransferJob(){
   calcPipelineTotals(); const b=window._pipelineBase||{}; const d=collectPipelineData();
   const job={jobNo:b.jobNo,date:b.date,category:'LPG',workType:'Pipeline Transfer',operation:'LPG',client:d.customer||b.client||'',vessel:b.vessel||'',imo:b.imo||'',port:b.port||'',surveyor:document.getElementById('ptSurveyor')?.value||b.surveyor||'',reference:b.reference||'',remarks:d.remarks||'',status:'Open',createdAt:new Date().toISOString(),pipeline:d};
   if(!job.client||!d.supplier||!d.receiver||!d.sourceTanks||!d.receivingTanks){toast('Please complete customer, transferred terminal, received terminal and tank fields.');return;}
-  const jobs=getJobs();jobs.push(job);saveJobs(jobs);toast('Pipeline Transfer job saved successfully');setTimeout(()=>showPage('jobs',document.querySelectorAll('.nav button')[1]),500);
+  const jobs=getJobs();jobs.push(job);saveJobs(jobs);toast('Pipeline Transfer job saved successfully');setTimeout(()=>showPage('jobs',document.querySelectorAll('.nav button')[2]),500);
 }
 function previewPipelineTransferReport(){
   calcPipelineTotals(); const b=window._pipelineBase||{}, d=collectPipelineData(); const r=d.rows;
@@ -565,23 +721,9 @@ function previewPipelineTransferReport(){
   document.getElementById('ptReportPreview').innerHTML=`<div class="card" style="border:2px solid #17324d"><h3>Report Package Preview</h3><div class="formgrid"><div><b>Job No.</b><br>${esc(b.jobNo)}</div><div><b>Operation</b><br>TANK TO TANK TRANSFER & LPG</div><div><b>Transferred</b><br>${esc(d.supplier)}</div><div><b>Received</b><br>${esc(d.receiver)}</div><div><b>Tanks</b><br>${esc(d.sourceTanks)} TO ${esc(d.receivingTanks)}</div><div><b>Bill of Lading</b><br>${esc(d.blNo||'-')}</div></div><hr><b>Enclosures</b><div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:8px"><span class="status">Certificate of Quantity</span><span class="status">Shore Tank Calculations</span><span class="status">Time Sheet</span><span class="status">Quantity Comparison</span><span class="status">NOD / Difference Notice</span></div><div style="margin-top:12px"><b>Metric tons (in Air)</b>: Received ${air.received.toFixed(3)} · Transferred ${air.transferred.toFixed(3)} · Difference ${air.difference.toFixed(3)} · ${air.percent}</div><div class="footer" style="margin-top:8px">Status: ${esc(status)}. Final report wording/layout will be matched to the supplied Intertek template in the next document-generation step.</div></div>`;
 }
 
-function importCustomerJobId(event){
-  const file=event.target.files&&event.target.files[0];
-  if(!file)return;
-  const reader=new FileReader();
-  reader.onload=function(){
-    const raw=String(reader.result||'').trim();
-    const id=(raw.split(/\r?\n/).map(x=>x.trim()).find(x=>x)||'').replace(/^Customer Job ID\s*[:=]\s*/i,'').trim();
-    if(!id){toast('No Customer Job ID found in the file');return;}
-    document.getElementById('jobCustomerId').value=id;
-    toast('Customer Job ID imported');
-  };
-  reader.readAsText(file);
-}
-
 function saveNewJob(){
   const job={
-    jobNo:document.getElementById('jobNo').value,
+    jobNo:consumeNextJobNo(),
     date:document.getElementById('jobDate').value,
     category:document.getElementById('jobCategory').value,
     workType:document.getElementById('jobWorkType').value,
@@ -593,9 +735,6 @@ function saveNewJob(){
     surveyor:document.getElementById('jobSurveyor').value.trim(),
     reference:document.getElementById('jobRef').value.trim(),
     remarks:document.getElementById('jobRemarks').value.trim(),
-    customerJobId:document.getElementById('jobCustomerId').value.trim(),
-    customerPortal:document.getElementById('jobCustomerPortal').value.trim(),
-    customerUploadStatus:document.getElementById('jobCustomerUploadStatus').value,
     status:'Open',
     createdAt:new Date().toISOString()
   };
@@ -603,7 +742,7 @@ function saveNewJob(){
   if(!job.client||!job.vessel){toast('Please enter at least Client and Vessel');return;}
   const jobs=getJobs();jobs.push(job);saveJobs(jobs);
   toast('Job saved successfully');
-  setTimeout(()=>showPage('jobs',document.querySelectorAll('.nav button')[1]),500);
+  setTimeout(()=>showPage('jobs',document.querySelectorAll('.nav button')[2]),500);
 }
 
 function renderAdmin(c){
@@ -623,6 +762,15 @@ function renderAdmin(c){
     <div class="card" style="background:#f7fafc">
       <h3>Users</h3>
       <div class="table-wrap"><table class="table"><thead><tr><th>Intertek Email</th><th>Name</th><th>Role</th></tr></thead><tbody>${users.map(u=>`<tr><td>${esc(u.username)}</td><td>${esc(u.name)}</td><td>${esc(u.role)}</td></tr>`).join('')}</tbody></table></div>
+    </div>
+    <div class="card" style="background:#f7fafc">
+      <h3>Job Number Control</h3><div class="muted">Temporary setup value. Update the current running H-number only after the whole workflow is finalized.</div>
+      <div class="formgrid" style="margin-top:10px"><div class="field"><label>Prefix</label><input id="jobPrefix" value="${esc(getJobControl().prefix)}"></div><div class="field"><label>Next H Number</label><input id="jobNextNo" type="number" value="${esc(getJobControl().nextNo)}"></div><div class="field"><label>Year</label><input id="jobYear" type="number" value="${esc(getJobControl().year)}"></div></div>
+      <button class="btn" onclick="saveJobNumberControl()">Save Job Number Control</button><div class="mini" style="margin-top:8px">Current setup preview: <b>${esc(nextJobNo())}</b></div>
+    </div>
+    <div class="card" style="background:#fff8d6">
+      <h3>Customer Portal Links</h3><div class="muted">Store only the customer portal URL. Never store customer passwords here.</div>
+      <div class="formgrid" style="margin-top:10px"><div class="field"><label>Customer</label><input id="portalClient" value="EQUINOR ASA"></div><div class="field"><label>Portal URL</label><input id="portalUrl" placeholder="https://..."></div></div><button class="btn" onclick="savePortalLink()">Save Portal Link</button>
     </div>
     <div class="card">
       <h3>Surveyors</h3>
@@ -645,6 +793,9 @@ function changeAdminPassword(){
   document.getElementById('confirmAdminPassword').value='';
   toast('Admin password changed successfully');
 }
+function saveJobNumberControl(){const prefix=document.getElementById('jobPrefix').value.trim()||'ITSPK/H',nextNo=Math.max(1,parseInt(document.getElementById('jobNextNo').value||'1',10)),year=parseInt(document.getElementById('jobYear').value||new Date().getFullYear(),10);saveJobControl({prefix,nextNo,year});toast('Job number control saved: '+nextJobNo());renderAdmin(document.getElementById('content'))}
+function savePortalLink(){const client=document.getElementById('portalClient').value.trim(),url=document.getElementById('portalUrl').value.trim();if(!client||!url){toast('Enter customer and portal URL');return}const x=getPortals();const i=x.findIndex(p=>p.client.toLowerCase()===client.toLowerCase());if(i>=0)x[i]={client,url,active:true};else x.push({client,url,active:true});savePortals(x);toast('Customer portal saved');renderAdmin(document.getElementById('content'))}
+
 function renderPlaceholder(c,title){
   c.innerHTML=`<div class="card"><h3>${esc(title)}</h3><div class="empty">
   This module is intentionally kept as a base placeholder.<br>
