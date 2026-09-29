@@ -6,7 +6,7 @@
 <title>INTERTEK INSPECTOR</title>
 <style>
 :root{
-  --navy:#08233f;--navy2:#0d355b;--teal:#18a6a8;--bg:#f4f7fa;
+  --navy:#111111;--navy2:#1d1d1d;--teal:#f5c400;--yellow:#f5c400;--bg:#f5f6f7;
   --card:#fff;--text:#172333;--muted:#718096;--line:#e5eaf0;
   --danger:#d64545;--green:#159a68
 }
@@ -18,57 +18,57 @@ button{cursor:pointer}
 
 /* LOGIN */
 .login{min-height:100vh;display:grid;place-items:center;padding:28px 18px;
-background:linear-gradient(135deg,#061b31 0%,#083e67 48%,#0b79a0 100%);
+background:linear-gradient(135deg,#090909 0%,#171717 58%,#2a2a2a 100%);
 position:relative;overflow:hidden}
 .login:before,.login:after{content:"";position:absolute;left:-8%;width:116%;height:190px;
 border-radius:50%;pointer-events:none}
-.login:before{bottom:-125px;background:rgba(8,54,91,.78);transform:rotate(-5deg)}
-.login:after{bottom:-165px;background:rgba(12,104,139,.65);transform:rotate(7deg)}
+.login:before{bottom:-125px;background:rgba(245,196,0,.20);transform:rotate(-5deg)}
+.login:after{bottom:-165px;background:rgba(245,196,0,.12);transform:rotate(7deg)}
 .login-card{position:relative;z-index:1;width:min(650px,94vw);background:#fff;
 border-radius:28px;padding:42px 58px 48px;box-shadow:0 28px 80px rgba(0,0,0,.32)}
 .login-logo{display:flex;justify-content:center;align-items:center;height:145px;margin-bottom:5px}
 .login-logo img{display:block;width:min(300px,70vw);max-height:140px;object-fit:contain}
-.intertek-mark{font-weight:900;font-size:40px;letter-spacing:2px;color:#0b416d}
-.wave{height:4px;background:linear-gradient(90deg,#1684bb,#19b8aa);margin:4px 0 28px;border-radius:5px}
-.login-card h2{text-align:left;color:#143b5c;font-size:28px;margin:0 0 8px;font-weight:800}
+.intertek-mark{font-weight:900;font-size:40px;letter-spacing:2px;color:#111}
+.wave{height:4px;background:linear-gradient(90deg,#111,#f5c400);margin:4px 0 28px;border-radius:5px}
+.login-card h2{text-align:left;color:#111;font-size:28px;margin:0 0 8px;font-weight:800}
 .login-card>p{font-size:16px;margin:0 0 24px;color:#526b82}
 .field{margin:15px 0}.field label{display:block;font-size:13px;font-weight:700;margin-bottom:6px;color:#526b82}
 .field input,.field select,.field textarea{width:100%;padding:12px;border:1px solid #d8e0e8;border-radius:9px;outline:none;background:#fff}
 .password-wrap{position:relative}.password-wrap input{padding-right:75px}
 .password-wrap button{position:absolute;right:7px;top:7px;border:0;background:#edf3f7;border-radius:7px;padding:7px 9px;font-size:12px}
-.login-btn{width:100%;height:54px;border:0;border-radius:12px;background:#082f51;color:#fff;
-font-size:18px;font-weight:800;margin-top:10px}.login-btn:hover{background:#0b416d}
+.login-btn{width:100%;height:54px;border:0;border-radius:12px;background:#111;color:#fff;
+font-size:18px;font-weight:800;margin-top:10px}.login-btn:hover{background:#000;box-shadow:0 0 0 3px rgba(245,196,0,.35)}
 .login-note{text-align:center;font-size:12px;color:#8a98a8;margin-top:16px}
 
 /* APP */
-.layout{display:flex;min-height:100vh}.side{width:245px;background:var(--navy);color:#d9e7f3;
+.layout{display:flex;min-height:100vh}.side{width:245px;background:#111;color:#f1f1f1;
 padding:20px 14px;position:fixed;inset:0 auto 0 0;height:100vh;overflow-y:auto}
 .brand{padding:8px 12px 22px;color:white;font-weight:900;font-size:22px}
-.brand small{display:block;font-size:10px;letter-spacing:1.2px;color:#83cbd0;margin-top:4px}
-.nav{display:grid;gap:4px}.nav button{border:0;background:transparent;color:#cfe0ee;
-text-align:left;padding:12px 13px;border-radius:9px}.nav button:hover,.nav button.active{background:#16476d;color:#fff}
+.brand small{display:block;font-size:10px;letter-spacing:1.2px;color:#f5c400;margin-top:4px}
+.nav{display:grid;gap:4px}.nav button{border:0;background:transparent;color:#eeeeee;
+text-align:left;padding:12px 13px;border-radius:9px}.nav button:hover,.nav button.active{background:#f5c400;color:#111;font-weight:800}
 .main{margin-left:245px;width:calc(100% - 245px)}.top{height:72px;background:#fff;border-bottom:1px solid var(--line);
 display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:5}
 .top h1{font-size:20px;margin:0}.user{font-size:13px;color:var(--muted)}
-.content{padding:26px}.hero{background:linear-gradient(110deg,#0b3559,#087f8b);color:#fff;
+.content{padding:26px}.hero{background:linear-gradient(110deg,#111,#242424);color:#fff;border-left:6px solid #f5c400;
 border-radius:16px;padding:26px;margin-bottom:22px;min-height:150px;display:flex;justify-content:space-between;align-items:end}
-.hero h2{margin:0 0 6px;font-size:28px}.hero p{margin:0;color:#d6eef1}
+.hero h2{margin:0 0 6px;font-size:28px}.hero p{margin:0;color:#f1f1f1}
 .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:22px}
 .kpi{background:var(--card);padding:18px;border-radius:13px;border:1px solid var(--line)}
 .kpi .label{font-size:12px;color:var(--muted);font-weight:700}.kpi .num{font-size:23px;font-weight:900;margin-top:7px}
 .card{background:#fff;border:1px solid var(--line);border-radius:13px;padding:18px;margin-bottom:18px}
 .card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.card h3{margin:0;font-size:16px}
-.formgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.btn{border:0;border-radius:9px;padding:11px 16px;background:var(--teal);color:#fff;font-weight:700}
-.btn.secondary{background:#eaf1f6;color:var(--navy)}.btn.danger{background:var(--danger)}
+.formgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.btn{border:0;border-radius:9px;padding:11px 16px;background:#f5c400;color:#111;font-weight:800}
+.btn.secondary{background:#eeeeee;color:#111}.btn.danger{background:var(--danger)}
 .toolbar{display:flex;gap:10px;justify-content:space-between;align-items:center;margin-bottom:15px}
 .toolbar input{max-width:330px;padding:10px;border:1px solid #d8e0e8;border-radius:9px}
 .table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse;font-size:13px}
 .table th,.table td{text-align:left;padding:11px 9px;border-bottom:1px solid var(--line);white-space:nowrap}
 .table th{color:var(--muted);font-size:11px;text-transform:uppercase}
 .status{display:inline-block;padding:4px 8px;border-radius:20px;background:#edf2f7;font-size:11px;font-weight:700}
-.status.open{background:#e8f5ff;color:#12649b}.status.complete{background:#e4f7ee;color:#087b50}
+.status.open{background:#fff3b8;color:#6a5200}.status.complete{background:#e4f7ee;color:#087b50}
 .empty{padding:35px;text-align:center;color:var(--muted)}
-.toast{position:fixed;right:22px;bottom:22px;background:#102a43;color:#fff;padding:13px 18px;border-radius:10px;box-shadow:0 8px 30px #0003;z-index:20}
+.toast{position:fixed;right:22px;bottom:22px;background:#111;color:#fff;padding:13px 18px;border-radius:10px;box-shadow:0 8px 30px #0003;z-index:20}
 .footer{font-size:11px;color:#8a98a8;margin-top:20px}
 
 @media(max-width:900px){.kpis{grid-template-columns:repeat(3,1fr)}}
@@ -140,7 +140,7 @@ border-radius:16px;padding:26px;margin-bottom:22px;min-height:150px;display:flex
   </main>
 </div>
 
-<div id="toast" class="toast hidden"></div>
+<div id="toast" class="toast hidden"></div><div style="display:none">INTERTEK INSPECTOR • Yellow/Black Theme</div>
 <div id="buildVersion" style="display:none">INTERTEK INSPECTOR V4</div>
 
 <script>
@@ -482,7 +482,7 @@ function renderAdmin(c){
   const users=getUsers();
   c.innerHTML=`<div class="card"><div class="card-head"><div><h3>Admin Control</h3><div class="footer">Standalone application login — independent of Intertek Global IT and separate from MSS.</div></div><span class="status open">ADMIN</span></div>
   <div class="card" style="background:#f7fafc"><h3>Current Users</h3><div class="table-wrap"><table class="table"><thead><tr><th>User ID</th><th>Name</th><th>Role</th></tr></thead><tbody>${users.map(u=>`<tr><td>${esc(u.username)}</td><td>${esc(u.name)}</td><td>${esc(u.role)}</td></tr>`).join('')}</tbody></table></div></div>
-  <div class="card" style="background:#fff8e6"><b>Initial administrator</b><p style="margin:8px 0">User ID: <b>admin</b><br>Password: <b>Intertek@2026</b></p><div class="footer">This initial login is for development/testing. Because this is a standalone HTML application using browser storage, it is not suitable for production security until a real server-side authentication/database is connected.</div></div></div>`;
+  <div class="card" style="background:#fff9d6;border-left:4px solid #f5c400"><b>Initial administrator</b><p style="margin:8px 0">User ID: <b>admin</b><br>Password: <b>Intertek@2026</b></p><div class="footer">This initial login is for development/testing. Because this is a standalone HTML application using browser storage, it is not suitable for production security until a real server-side authentication/database is connected.</div></div></div>`;
 }
 
 function renderPlaceholder(c,title){
