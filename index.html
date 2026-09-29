@@ -382,10 +382,10 @@ function renderDashboard(c){
 function jobTable(jobs){
   if(!jobs.length)return '<div class="empty">No jobs created yet.</div>';
   return `<div class="table-wrap"><table class="table"><thead><tr>
-  <th>Job No</th><th>Date</th><th>Client</th><th>Vessel</th><th>Category</th><th>Work Type</th><th>Operation</th><th>Status</th>
+  <th>Job No</th><th>Customer Job ID</th><th>Date</th><th>Client</th><th>Vessel</th><th>Category</th><th>Work Type</th><th>Operation</th><th>Customer Upload</th><th>Status</th>
   </tr></thead><tbody>${jobs.map(j=>`<tr>
-  <td><b>${esc(j.jobNo)}</b></td><td>${esc(j.date)}</td><td>${esc(j.client)}</td><td>${esc(j.vessel)}</td>
-  <td>${esc(j.category)}</td><td>${esc(j.workType)}</td><td>${esc(j.operation)}</td><td><span class="status ${j.status==='Completed'?'complete':'open'}">${esc(j.status)}</span></td>
+  <td><b>${esc(j.jobNo)}</b></td><td>${esc(j.customerJobId||'-')}</td><td>${esc(j.date)}</td><td>${esc(j.client)}</td><td>${esc(j.vessel)}</td>
+  <td>${esc(j.category)}</td><td>${esc(j.workType)}</td><td>${esc(j.operation)}</td><td>${esc(j.customerUploadStatus||'Not Ready')}</td><td><span class="status ${j.status==='Completed'?'complete':'open'}">${esc(j.status)}</span></td>
   </tr>`).join('')}</tbody></table></div>`;
 }
 
@@ -417,8 +417,10 @@ function renderCreate(c){
     <div class="field"><label>Port / Terminal</label><input id="jobPort" placeholder="Port / terminal"></div>
     <div class="field"><label>Surveyor</label><input id="jobSurveyor" placeholder="Surveyor name"></div>
     <div class="field"><label>PO / Reference</label><input id="jobRef" placeholder="PO / client reference"></div>
+    <div class="field"><label>Customer Job ID</label><input id="jobCustomerId" placeholder="Only for customer system upload" readonly><input id="customerJobIdFile" type="file" accept=".txt,.csv" style="display:none" onchange="importCustomerJobId(event)"><button type="button" class="btn secondary" style="margin-top:6px" onclick="document.getElementById('customerJobIdFile').click()">Import Customer Job ID</button></div>
   </div>
   <div class="field"><label>Remarks</label><textarea id="jobRemarks" rows="4" placeholder="Initial job remarks"></textarea></div>
+  <div class="card" style="background:#fffbea;border-left:4px solid #ffdd00;margin-top:12px"><h3 style="margin-top:0">Customer System Submission</h3><p style="margin:0 0 10px;color:#555;font-size:13px">Customer Job ID is kept separately from the Intertek Job No. It is used only when submitting/uploading this job to the customer system.</p><div class="formgrid"><div class="field"><label>Customer Portal</label><input id="jobCustomerPortal" placeholder="Customer system URL (optional)"></div><div class="field"><label>Upload Status</label><select id="jobCustomerUploadStatus"><option>Not Ready</option><option>Ready for Upload</option><option>Uploaded to Customer System</option></select></div></div></div>
   <div id="workflowPreview" class="card" style="background:#f7fafc;margin-top:12px">
     <b>Workflow</b><div class="empty" style="padding:18px">Select a Job Category to begin.</div>
   </div>
@@ -563,6 +565,20 @@ function previewPipelineTransferReport(){
   document.getElementById('ptReportPreview').innerHTML=`<div class="card" style="border:2px solid #17324d"><h3>Report Package Preview</h3><div class="formgrid"><div><b>Job No.</b><br>${esc(b.jobNo)}</div><div><b>Operation</b><br>TANK TO TANK TRANSFER & LPG</div><div><b>Transferred</b><br>${esc(d.supplier)}</div><div><b>Received</b><br>${esc(d.receiver)}</div><div><b>Tanks</b><br>${esc(d.sourceTanks)} TO ${esc(d.receivingTanks)}</div><div><b>Bill of Lading</b><br>${esc(d.blNo||'-')}</div></div><hr><b>Enclosures</b><div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:8px"><span class="status">Certificate of Quantity</span><span class="status">Shore Tank Calculations</span><span class="status">Time Sheet</span><span class="status">Quantity Comparison</span><span class="status">NOD / Difference Notice</span></div><div style="margin-top:12px"><b>Metric tons (in Air)</b>: Received ${air.received.toFixed(3)} · Transferred ${air.transferred.toFixed(3)} · Difference ${air.difference.toFixed(3)} · ${air.percent}</div><div class="footer" style="margin-top:8px">Status: ${esc(status)}. Final report wording/layout will be matched to the supplied Intertek template in the next document-generation step.</div></div>`;
 }
 
+function importCustomerJobId(event){
+  const file=event.target.files&&event.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(){
+    const raw=String(reader.result||'').trim();
+    const id=(raw.split(/\r?\n/).map(x=>x.trim()).find(x=>x)||'').replace(/^Customer Job ID\s*[:=]\s*/i,'').trim();
+    if(!id){toast('No Customer Job ID found in the file');return;}
+    document.getElementById('jobCustomerId').value=id;
+    toast('Customer Job ID imported');
+  };
+  reader.readAsText(file);
+}
+
 function saveNewJob(){
   const job={
     jobNo:document.getElementById('jobNo').value,
@@ -577,6 +593,9 @@ function saveNewJob(){
     surveyor:document.getElementById('jobSurveyor').value.trim(),
     reference:document.getElementById('jobRef').value.trim(),
     remarks:document.getElementById('jobRemarks').value.trim(),
+    customerJobId:document.getElementById('jobCustomerId').value.trim(),
+    customerPortal:document.getElementById('jobCustomerPortal').value.trim(),
+    customerUploadStatus:document.getElementById('jobCustomerUploadStatus').value,
     status:'Open',
     createdAt:new Date().toISOString()
   };
