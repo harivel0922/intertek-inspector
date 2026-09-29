@@ -147,10 +147,24 @@ border-radius:16px;padding:26px;margin-bottom:22px;min-height:150px;display:flex
 const STORAGE_KEY='intertek_survey_jobs_v1';
 const SESSION_KEY='intertek_session_v1';
 const ADMIN_USERS_KEY='intertek_admin_users_v1';
-const DEFAULT_ADMIN={username:'admin',password:'Intertek@2026',role:'Admin',name:'Intertek Administrator'};
+const DEFAULT_ADMIN={username:'harivel.ganisan@intertek.com',password:'Intertek@2026',role:'Admin',name:'Harivel Ganisan'};
 
 function getUsers(){
-  try{const u=JSON.parse(localStorage.getItem(ADMIN_USERS_KEY)||'null'); if(Array.isArray(u)&&u.length)return u;}catch(e){}
+  try{
+    const u=JSON.parse(localStorage.getItem(ADMIN_USERS_KEY)||'null');
+    if(Array.isArray(u)&&u.length){
+      let changed=false;
+      const migrated=u.map(x=>{
+        if(x && x.username==='admin'){
+          changed=true;
+          return {...x,username:DEFAULT_ADMIN.username,name:DEFAULT_ADMIN.name,role:'Admin'};
+        }
+        return x;
+      });
+      if(changed) localStorage.setItem(ADMIN_USERS_KEY,JSON.stringify(migrated));
+      return migrated;
+    }
+  }catch(e){}
   localStorage.setItem(ADMIN_USERS_KEY,JSON.stringify([DEFAULT_ADMIN]));
   return [DEFAULT_ADMIN];
 }
@@ -196,7 +210,7 @@ function login(){
   const p=document.getElementById('loginPass').value;
   if(!u||!p){toast('Please enter username and password');return;}
   const account=authenticateUser(u,p);
-  if(!account){toast('Invalid admin username or password');return;}
+  if(!account){toast('Invalid Intertek email or password');return;}
   localStorage.setItem(SESSION_KEY,JSON.stringify({user:account.username,name:account.name,role:account.role,loginAt:new Date().toISOString()}));
   startApp(account);
 }
@@ -480,11 +494,43 @@ function saveNewJob(){
 
 function renderAdmin(c){
   const users=getUsers();
-  c.innerHTML=`<div class="card"><div class="card-head"><div><h3>Admin Control</h3><div class="footer">Standalone application login — independent of Intertek Global IT and separate from MSS.</div></div><span class="status open">ADMIN</span></div>
-  <div class="card" style="background:#f7fafc"><h3>Current Users</h3><div class="table-wrap"><table class="table"><thead><tr><th>User ID</th><th>Name</th><th>Role</th></tr></thead><tbody>${users.map(u=>`<tr><td>${esc(u.username)}</td><td>${esc(u.name)}</td><td>${esc(u.role)}</td></tr>`).join('')}</tbody></table></div></div>
-  <div class="card" style="background:#fff9d6;border-left:4px solid #f5c400"><b>Initial administrator</b><p style="margin:8px 0">User ID: <b>admin</b><br>Password: <b>Intertek@2026</b></p><div class="footer">This initial login is for development/testing. Because this is a standalone HTML application using browser storage, it is not suitable for production security until a real server-side authentication/database is connected.</div></div></div>`;
+  c.innerHTML=`<div class="card">
+    <div class="card-head"><div><h3>Admin Control</h3><div class="footer">Standalone application login — independent of Intertek Global IT and separate from MSS.</div></div><span class="status open">ADMIN</span></div>
+    <div class="card" style="background:#fff9d6;border-left:4px solid #f5c400">
+      <h3>Administrator Account</h3>
+      <p style="margin:8px 0 14px"><b>Intertek Email:</b> harivel.ganisan@intertek.com</p>
+      <div class="formgrid">
+        <div><label>New Password</label><input id="newAdminPassword" type="password" autocomplete="new-password" placeholder="Enter new password"></div>
+        <div><label>Confirm New Password</label><input id="confirmAdminPassword" type="password" autocomplete="new-password" placeholder="Confirm new password"></div>
+      </div>
+      <button type="button" class="btn" onclick="changeAdminPassword()">Change Password</button>
+      <div class="footer" style="margin-top:10px">Temporary password currently configured: <b>Intertek@2026</b>. Change it here after setup.</div>
+    </div>
+    <div class="card" style="background:#f7fafc">
+      <h3>Users</h3>
+      <div class="table-wrap"><table class="table"><thead><tr><th>Intertek Email</th><th>Name</th><th>Role</th></tr></thead><tbody>${users.map(u=>`<tr><td>${esc(u.username)}</td><td>${esc(u.name)}</td><td>${esc(u.role)}</td></tr>`).join('')}</tbody></table></div>
+    </div>
+    <div class="card">
+      <h3>Surveyors</h3>
+      <div class="footer">Surveyor accounts can be added later using each surveyor's Intertek email. We will add role-based access without changing the existing job workflows.</div>
+    </div>
+  </div>`;
 }
 
+function changeAdminPassword(){
+  const np=document.getElementById('newAdminPassword').value;
+  const cp=document.getElementById('confirmAdminPassword').value;
+  if(!np||np.length<8){toast('New password must be at least 8 characters');return;}
+  if(np!==cp){toast('Passwords do not match');return;}
+  const users=getUsers();
+  const i=users.findIndex(u=>u.username==='harivel.ganisan@intertek.com');
+  if(i<0){toast('Administrator account not found');return;}
+  users[i].password=np;
+  localStorage.setItem(ADMIN_USERS_KEY,JSON.stringify(users));
+  document.getElementById('newAdminPassword').value='';
+  document.getElementById('confirmAdminPassword').value='';
+  toast('Admin password changed successfully');
+}
 function renderPlaceholder(c,title){
   c.innerHTML=`<div class="card"><h3>${esc(title)}</h3><div class="empty">
   This module is intentionally kept as a base placeholder.<br>
