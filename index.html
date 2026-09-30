@@ -372,12 +372,14 @@ function parseNominationText(){
   set('nomPort',pick([/LOAD PORT:\s*([^\n\r]+)/i,/Port\s*[:：]\s*([^\n\r]+)/i]));
   set('nomAgent',pick([/AGENT:\s*([^\n\r]+)/i]));
   set('nomClientNo',pick([/Your Ref\s*[:：]\s*([^\n\r]+)/i,/Ref(?:erence)?(?: Number)?\s*[:：]\s*([0-9A-Za-z &-]+)/i]));
+  const from=pick([/^From:\s*(?:[^<\n\r]*<)?([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})(?:>)?/im]);
+  const subject=pick([/^Subject:\s*(.+)$/im]);
+  set('nomSenderEmail',from);
+  set('nomEmailSubject',subject);
   toast('Nomination details extracted where recognised. Please review before saving.');
 }
-function saveNomination(){
-  const n={
-    jobNo:consumeNextJobNo(),
-    nominationNo:'',
+function nominationFormData(){
+  return {
     receivedDate:document.getElementById('nomReceivedDate').value,
     client:document.getElementById('nomClient').value.trim(),
     clientNo:document.getElementById('nomClientNo').value.trim(),
@@ -395,13 +397,40 @@ function saveNomination(){
     cost:document.getElementById('nomCost').value.trim(),
     surveyType:document.getElementById('nomSurveyType').value.trim(),
     remarks:document.getElementById('nomRemarks').value.trim(),
-    emailText:document.getElementById('nominationEmailText').value,
-    status:'Received', createdAt:new Date().toISOString()
+    senderEmail:document.getElementById('nomSenderEmail').value.trim(),
+    emailSubject:document.getElementById('nomEmailSubject').value.trim(),
+    emailText:document.getElementById('nominationEmailText').value
   };
+}
+function saveNomination(){
+  const d=nominationFormData();
+  const n={...d,jobNo:consumeNextJobNo(),nominationNo:'',status:'Received',createdAt:new Date().toISOString()};
   if(!n.client||!n.vessel||!n.category||!n.workType){toast('Please enter Client, Vessel, Category and Work Type');return}
   const items=getNominations(); items.push(n); saveNominations(items);
   toast('Nomination saved as RECEIVED — '+n.jobNo);
   setTimeout(()=>showPage('nominations',document.querySelectorAll('.nav button')[1]),400);
+}
+function saveNominationEdit(index){
+  const items=getNominations(); const idx=Number(index);
+  if(!Number.isInteger(idx)||!items[idx])return;
+  const d=nominationFormData();
+  if(!d.client||!d.vessel||!d.category||!d.workType){toast('Please enter Client, Vessel, Category and Work Type');return}
+  const old=items[idx];
+  items[idx]={...old,...d};
+  saveNominations(items);
+  // Keep the linked Intertek job synchronized when an already-confirmed nomination is edited.
+  if(old.status==='Confirmed' && old.jobNo){
+    const jobs=getJobs(); const ji=jobs.findIndex(j=>j.jobNo===old.jobNo);
+    if(ji>=0){
+      jobs[ji]={...jobs[ji],date:d.receivedDate,client:d.client,clientNo:d.clientNo||d.customerRef||'',vessel:d.vessel,imo:d.imo,
+        category:d.category,workType:d.workType,operation:d.operation,cargo:d.cargo,quantity:d.quantity,laycan:d.laycan,port:d.port,
+        agent:d.agent,cost:d.cost,surveyType:d.surveyType,remarks:d.remarks,ref:d.clientNo||d.customerRef||'',
+        eimsRefNo:d.clientNo||jobs[ji].eimsRefNo||''};
+      saveJobs(jobs);
+    }
+  }
+  toast('Nomination updated — '+(old.jobNo||''));
+  setTimeout(()=>showPage('nominations',document.querySelectorAll('.nav button')[1]),350);
 }
 function confirmNomination(index){
   const items=getNominations(); const idx=Number(index); if(!Number.isInteger(idx)||!items[idx])return;
@@ -420,25 +449,79 @@ function confirmNomination(index){
   toast('Confirmed: '+jobNo);
   setTimeout(()=>showPage('jobs',document.querySelectorAll('.nav button')[2]),500);
 }
+function editNomination(index){
+  const items=getNominations(); const idx=Number(index); if(!Number.isInteger(idx)||!items[idx])return;
+  renderNominationForm(items[idx],idx);
+}
+function renderNominationForm(existing=null,index=null){
+  const c=document.getElementById('content');
+  const today=new Date().toISOString().slice(0,10);
+  const edit=!!existing;
+  const d=existing||{};
+  c.innerHTML=`<div class="card"><div class="card-head"><div><h3>${edit?'Edit Client Nomination':'New Client Nomination'}</h3><div class="muted">${edit?'Update the nomination details. If the job is already confirmed, linked job details are updated too.':'Start here when a nomination arrives by email.'}</div></div><span class="status ${d.status==='Confirmed'?'complete':'open'}">${esc(d.status||'RECEIVED')}</span></div>
+  <div class="card" style="background:#fff8d6"><b>Import / review nomination email</b><p class="muted">Paste the nomination email or choose a text/HTML/EML file. Use Extract Details, then review before saving.</p><input type="file" accept=".txt,.html,.htm,.eml" onchange="readNominationFile(this)"><textarea id="nominationEmailText" rows="7" placeholder="Paste client nomination email here..." style="margin-top:10px;width:100%">${esc(d.emailText||'')}</textarea><button class="btn secondary" style="margin-top:8px" onclick="parseNominationText()">Extract Details</button></div>
+  <div class="formgrid">
+    <div class="field"><label>Our Nomination / Intertek Job No.</label><input id="nomPreviewJobNo" value="${esc(d.jobNo||nextJobNo())}" readonly><div class="mini">Same number from nomination start to job close.</div></div><div class="field"><label>Received Date</label><input id="nomReceivedDate" type="date" value="${esc(d.receivedDate||today)}"></div>
+    <div class="field"><label>Client *</label><input id="nomClient" value="${esc(d.client||'EQUINOR ASA')}" placeholder="EQUINOR ASA"></div><div class="field"><label>Vessel *</label><input id="nomVessel" value="${esc(d.vessel||'')}" placeholder="GAS INFINITY"></div>
+    <div class="field"><label>IMO No.</label><input id="nomIMO" value="${esc(d.imo||'')}" placeholder="IMO number"></div><div class="field"><label>Job Category *</label><select id="nomCategory" onchange="updateNominationTypes();updateNominationClientFields()"><option value="">Select Category</option><option>Bunkering</option><option>Cargo</option><option>LPG</option></select></div>
+    <div class="field"><label>Work Type *</label><select id="nomWorkType" onchange="updateNominationOperations()" disabled><option>Select category first</option></select></div><div class="field"><label>Operation / Product</label><select id="nomOperation" disabled><option>Select work type first</option></select></div>
+    <div class="field"><label>Cargo / Product</label><input id="nomCargo" value="${esc(d.cargo||'')}" placeholder="Pressurized LPG Mixture"></div><div class="field"><label>Quantity</label><input id="nomQuantity" value="${esc(d.quantity||'')}" placeholder="1042 MT +/- 5%"></div>
+    <div class="field"><label>Laycan / ETA</label><input id="nomLaycan" value="${esc(d.laycan||'')}" placeholder="21-22 Sep 2026"></div><div class="field"><label>Port / Terminal</label><input id="nomPort" value="${esc(d.port||'')}" placeholder="GES Klang Terminal, Port Klang"></div>
+    <div class="field"><label>Agent</label><input id="nomAgent" value="${esc(d.agent||'')}" placeholder="MV Maritime"></div><div class="field"><label id="nomClientRefLabel">EIMS Ref No. *</label><input id="nomClientNo" value="${esc(d.clientNo||d.customerRef||'')}" placeholder="313698 & 313696"><div class="mini" id="nomClientRefHelp">For LPG / EQUINOR: this is the client reference used in EIMS. It is separate from our Intertek Nomination / Job No.</div></div>
+    <div class="field"><label>Survey Type</label><input id="nomSurveyType" value="${esc(d.surveyType||'')}" placeholder="Quantity"></div><div class="field"><label>Cost Sharing</label><input id="nomCost" value="${esc(d.cost||'')}" placeholder="100% EQUINOR"></div>
+    <div class="field"><label>Nomination Email From</label><input id="nomSenderEmail" value="${esc(d.senderEmail||'')}" placeholder="client@example.com"></div><div class="field"><label>Original Email Subject</label><input id="nomEmailSubject" value="${esc(d.emailSubject||'')}" placeholder="RE: INSPECTION NOMINATION..."></div>
+  </div><div class="field"><label>Remarks / Special Instructions</label><textarea id="nomRemarks" rows="5" placeholder="Final quality based on paper calculation...">${esc(d.remarks||'')}</textarea></div>
+  <button class="btn" onclick="${edit?`saveNominationEdit(${index})`:'saveNomination()'}">${edit?'Save Changes':'Save Nomination'}</button> <button class="btn secondary" onclick="showPage('nominations',document.querySelectorAll('.nav button')[1])">Cancel</button></div>`;
+  setTimeout(()=>{
+    const cat=document.getElementById('nomCategory');
+    if(cat){cat.value=d.category||'';updateNominationTypes();}
+    const w=document.getElementById('nomWorkType');
+    if(w){w.value=d.workType||'';updateNominationOperations();}
+    const o=document.getElementById('nomOperation');
+    if(o)o.value=d.operation||'';
+    updateNominationClientFields();
+  },0);
+}
+function renderNewNomination(){ renderNominationForm(); }
+function replyNomination(index){
+  const items=getNominations(); const idx=Number(index); if(!Number.isInteger(idx)||!items[idx])return;
+  const n=items[idx];
+  let to=(n.senderEmail||'').trim();
+  if(!to) to=prompt('Client email address for reply:', '')||'';
+  if(!to)return;
+  const subject=n.emailSubject ? (/^\s*re:/i.test(n.emailSubject)?n.emailSubject:'Re: '+n.emailSubject) : `Re: ${n.vessel||'Inspection Nomination'}`;
+  const body=[
+    `Hi,`,
+    ``,
+    `Please refer below for job confirmation.`,
+    ``,
+    `GAS ${n.vessel||''} - CONFIRMATION OF ATTENDANCE`,
+    ``,
+    `Our Ref : ${n.jobNo||''}`,
+    `EIMS Ref No. : ${n.clientNo||n.customerRef||''}`,
+    `Vessel : ${n.vessel||''}`,
+    `Port : ${n.port||''}`,
+    `Laycan (ETA) : ${n.laycan||''}`,
+    `Product : ${n.cargo||''}`,
+    `Quantity : ${n.quantity||''}`,
+    `Survey Type : ${n.surveyType||''}`,
+    `Cost : ${n.cost||''}`,
+    ``,
+    `Remarks : ${n.remarks||''}`,
+    ``,
+    `Many thanks for your nomination on the above-stated vessel loading operation. We note your instructions and hereby confirm our attendance with pleasure.`,
+    ``,
+    `Regards,`,
+    `INTERTEK PORT KLANG`
+  ].join('\n');
+  window.location.href='mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
+  const updated={...n,replyPreparedAt:new Date().toISOString(),replyTo:to};
+  items[idx]=updated; saveNominations(items);
+  toast('Reply email draft opened for '+to);
+}
 function renderNominations(c){
   const items=getNominations().slice().reverse();
-  c.innerHTML=`<div class="card"><div class="toolbar"><div><h3>Nomination Inbox</h3><div class="muted">Client No. is supplied by the client. Our Nomination No. is the same as the Intertek Job No. and is assigned when the nomination is first saved. It stays unchanged from start to end.</div></div><button class="btn" onclick="renderNewNomination()">+ New Nomination</button></div>${items.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Job / Nomination No.</th><th>Received</th><th>Client No.</th><th>Client</th><th>Vessel</th><th>Operation</th><th>Laycan</th><th>Status</th><th>Action</th></tr></thead><tbody>${items.map((n,ri)=>{const idx=getNominations().length-1-ri;return `<tr><td><b>${esc(n.jobNo||'Pending')}</b><div class="mini">Our Nomination No. = Job No.</div></td><td>${esc(n.receivedDate)}</td><td>${esc(n.clientNo||n.customerRef||'—')}</td><td>${esc(n.client)}</td><td>${esc(n.vessel)}</td><td>${esc(n.workType)} / ${esc(n.operation)}</td><td>${esc(n.laycan)}</td><td><span class="status ${n.status==='Confirmed'?'complete':'open'}">${esc(n.status)}</span></td><td>${n.status==='Received'?`<button class="btn" onclick="confirmNomination(${idx})">Confirm Job</button>`:`<b>${esc(n.jobNo)}</b>`}</td></tr>`}).join('')}</tbody></table></div>`:'<div class="empty">No nominations received yet.</div>'}</div>`;
-}
-function renderNewNomination(){
-  const c=document.getElementById('content'); const today=new Date().toISOString().slice(0,10);
-  c.innerHTML=`<div class="card"><div class="card-head"><div><h3>New Client Nomination</h3><div class="muted">Start here when a nomination arrives by email.</div></div><span class="status open">RECEIVED</span></div>
-  <div class="card" style="background:#fff8d6"><b>Import nomination email</b><p class="muted">You can paste the email text or choose a text/HTML/EML file. The system will extract recognised details for review.</p><input type="file" accept=".txt,.html,.htm,.eml" onchange="readNominationFile(this)"><textarea id="nominationEmailText" rows="7" placeholder="Paste client nomination email here..." style="margin-top:10px;width:100%"></textarea><button class="btn secondary" style="margin-top:8px" onclick="parseNominationText()">Extract Details</button></div>
-  <div class="formgrid">
-    <div class="field"><label>Our Nomination / Intertek Job No.</label><input id="nomPreviewJobNo" value="${esc(nextJobNo())}" readonly><div class="mini">Assigned when nomination is saved and remains the same until job closed.</div></div><div class="field"><label>Received Date</label><input id="nomReceivedDate" type="date" value="${today}"></div>
-    <div class="field"><label>Client *</label><input id="nomClient" value="EQUINOR ASA" placeholder="EQUINOR ASA"></div><div class="field"><label>Vessel *</label><input id="nomVessel" placeholder="GAS INFINITY"></div>
-    <div class="field"><label>IMO No.</label><input id="nomIMO" placeholder="IMO number"></div><div class="field"><label>Job Category *</label><select id="nomCategory" onchange="updateNominationTypes();updateNominationClientFields()"><option value="">Select Category</option><option>Bunkering</option><option>Cargo</option><option>LPG</option></select></div>
-    <div class="field"><label>Work Type *</label><select id="nomWorkType" onchange="updateNominationOperations()" disabled><option>Select category first</option></select></div><div class="field"><label>Operation / Product</label><select id="nomOperation" disabled><option>Select work type first</option></select></div>
-    <div class="field"><label>Cargo / Product</label><input id="nomCargo" placeholder="Pressurized LPG Mixture"></div><div class="field"><label>Quantity</label><input id="nomQuantity" placeholder="1042 MT +/- 5%"></div>
-    <div class="field"><label>Laycan / ETA</label><input id="nomLaycan" placeholder="21-22 Sep 2026"></div><div class="field"><label>Port / Terminal</label><input id="nomPort" placeholder="GES Klang Terminal, Port Klang"></div>
-    <div class="field"><label>Agent</label><input id="nomAgent" placeholder="MV Maritime"></div><div class="field"><label id="nomClientRefLabel">EIMS Ref No. *</label><input id="nomClientNo" placeholder="313698 & 313696"><div class="mini" id="nomClientRefHelp">For LPG / EQUINOR: this is the client reference used in EIMS. It is separate from our Intertek Nomination / Job No.</div></div>
-    <div class="field"><label>Survey Type</label><input id="nomSurveyType" placeholder="Quantity"></div><div class="field"><label>Cost Sharing</label><input id="nomCost" placeholder="100% EQUINOR"></div>
-  </div><div class="field"><label>Remarks / Special Instructions</label><textarea id="nomRemarks" rows="5" placeholder="Final quality based on paper calculation..."></textarea></div>
-  <button class="btn" onclick="saveNomination()">Save Nomination</button> <button class="btn secondary" onclick="showPage('nominations',document.querySelectorAll('.nav button')[1])">Cancel</button></div>`;
+  c.innerHTML=`<div class="card"><div class="toolbar"><div><h3>Nomination Inbox</h3><div class="muted">Client No. / EIMS Ref No. is supplied by the client. Our Nomination No. is the same as the Intertek Job No. and stays unchanged from start to end.</div></div><button class="btn" onclick="renderNewNomination()">+ New Nomination</button></div>${items.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Job / Nomination No.</th><th>Received</th><th>EIMS Ref No.</th><th>Client</th><th>Vessel</th><th>Operation</th><th>Laycan</th><th>Status</th><th>Action</th></tr></thead><tbody>${items.map((n,ri)=>{const idx=getNominations().length-1-ri;return `<tr><td><b>${esc(n.jobNo||'Pending')}</b><div class="mini">Our Nomination No. = Job No.</div></td><td>${esc(n.receivedDate)}</td><td>${esc(n.clientNo||n.customerRef||'—')}</td><td>${esc(n.client)}</td><td>${esc(n.vessel)}</td><td>${esc(n.workType)} / ${esc(n.operation)}</td><td>${esc(n.laycan)}</td><td><span class="status ${n.status==='Confirmed'?'complete':'open'}">${esc(n.status)}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap">${n.status==='Received'?`<button class="btn" onclick="confirmNomination(${idx})">Confirm Job</button>`:''}<button class="btn secondary" onclick="editNomination(${idx})">Edit</button><button class="btn secondary" onclick="replyNomination(${idx})">Reply Nomination</button></div></td></tr>`}).join('')}</tbody></table></div>`:'<div class="empty">No nominations received yet.</div>'}</div>`;
 }
 function updateNominationTypes(){
   const c=document.getElementById('nomCategory'), w=document.getElementById('nomWorkType'), o=document.getElementById('nomOperation'); if(!c||!w||!o)return;
