@@ -251,7 +251,7 @@ const ADMIN_USERS_KEY='intertek_admin_users_v1';
 const JOB_CONTROL_KEY='intertek_job_control_v1';
 const PORTAL_KEY='intertek_customer_portals_v1';
 const DEFAULT_JOB_CONTROL={prefix:'ITSPK/H',nextNo:2001,year:2026};
-const DEFAULT_PORTALS=[{client:'EQUINOR ASA',url:'',active:true}];
+const DEFAULT_PORTALS=[{client:'EQUINOR ASA',system:'EIMS',url:'',active:true}];
 const DEFAULT_ADMIN={username:'harivel.ganisan@intertek.com',password:'Intertek@2026',role:'Admin',name:'Harivel Ganisan'};
 
 function getUsers(){
@@ -363,7 +363,9 @@ function parseNominationText(){
   const pick=(patterns)=>{for(const re of patterns){const m=t.match(re);if(m)return m[1].trim()}return ''};
   const set=(id,v)=>{if(v && document.getElementById(id))document.getElementById(id).value=v};
   set('nomVessel',pick([/PERFORMING VESSEL:\s*([^\n\r]+)/i,/Vessel\s*[:：]\s*([^\n\r]+)/i]));
-  set('nomClient',pick([/COST SHARING:\s*[^\n\r]*?([A-Z][A-Z0-9 .&-]{2,})/i,/SHIPPER:\s*([^\n\r]+)/i]));
+  set('nomClient','EQUINOR ASA');
+  if(/PRESSURIZED LPG|LPG/i.test(t) && document.getElementById('nomCategory')){document.getElementById('nomCategory').value='LPG';updateNominationTypes();updateNominationClientFields();}
+  set('nomClient',pick([/SHIPPER:\s*([^\n\r]+)/i])||'EQUINOR ASA');
   set('nomCargo',pick([/CARGO DESCRIPTION:\s*([^\n\r]+)/i,/Product\s*[:：]\s*([^\n\r]+)/i]));
   set('nomQuantity',pick([/CARGO QUANTITY:\s*([^\n\r]+)/i,/Quantity\s*[:：]\s*([^\n\r]+)/i]));
   set('nomLaycan',pick([/LOADING RANGE:\s*([^\n\r]+)/i,/LAYCAN.*?[:：]\s*([^\n\r]+)/i]));
@@ -409,7 +411,7 @@ function confirmNomination(index){
   const job={
     jobNo, nominationNo:jobNo, date:n.receivedDate||new Date().toISOString().slice(0,10), client:n.client, clientNo:n.clientNo||n.customerRef||'', vessel:n.vessel, imo:n.imo,
     category:n.category, workType:n.workType, operation:n.operation, cargo:n.cargo, quantity:n.quantity, laycan:n.laycan,
-    port:n.port, surveyor:'', surveyorEmail:'', ref:n.clientNo||n.customerRef||'', remarks:n.remarks, status:'Confirmed', jobNoSource:'Nomination',
+    port:n.port, surveyor:'', surveyorEmail:'', ref:n.clientNo||n.customerRef||'', eimsRefNo:n.clientNo||n.eimsRefNo||'', remarks:n.remarks, status:'Confirmed', jobNoSource:'Nomination',
     customerJobId:'', customerUploadStatus:'Not Ready', customerPortal:'', customerSubmissionDate:'', confirmationDate:new Date().toISOString(),
     attendanceStatus:'Pending', surveyStatus:'Pending', documentsStatus:'Pending', closedDate:''
   };
@@ -428,12 +430,12 @@ function renderNewNomination(){
   <div class="card" style="background:#fff8d6"><b>Import nomination email</b><p class="muted">You can paste the email text or choose a text/HTML/EML file. The system will extract recognised details for review.</p><input type="file" accept=".txt,.html,.htm,.eml" onchange="readNominationFile(this)"><textarea id="nominationEmailText" rows="7" placeholder="Paste client nomination email here..." style="margin-top:10px;width:100%"></textarea><button class="btn secondary" style="margin-top:8px" onclick="parseNominationText()">Extract Details</button></div>
   <div class="formgrid">
     <div class="field"><label>Our Nomination / Intertek Job No.</label><input id="nomPreviewJobNo" value="${esc(nextJobNo())}" readonly><div class="mini">Assigned when nomination is saved and remains the same until job closed.</div></div><div class="field"><label>Received Date</label><input id="nomReceivedDate" type="date" value="${today}"></div>
-    <div class="field"><label>Client *</label><input id="nomClient" placeholder="EQUINOR ASA"></div><div class="field"><label>Vessel *</label><input id="nomVessel" placeholder="GAS INFINITY"></div>
-    <div class="field"><label>IMO No.</label><input id="nomIMO" placeholder="IMO number"></div><div class="field"><label>Job Category *</label><select id="nomCategory" onchange="updateNominationTypes()"><option value="">Select Category</option><option>Bunkering</option><option>Cargo</option><option>LPG</option></select></div>
+    <div class="field"><label>Client *</label><input id="nomClient" value="EQUINOR ASA" placeholder="EQUINOR ASA"></div><div class="field"><label>Vessel *</label><input id="nomVessel" placeholder="GAS INFINITY"></div>
+    <div class="field"><label>IMO No.</label><input id="nomIMO" placeholder="IMO number"></div><div class="field"><label>Job Category *</label><select id="nomCategory" onchange="updateNominationTypes();updateNominationClientFields()"><option value="">Select Category</option><option>Bunkering</option><option>Cargo</option><option>LPG</option></select></div>
     <div class="field"><label>Work Type *</label><select id="nomWorkType" onchange="updateNominationOperations()" disabled><option>Select category first</option></select></div><div class="field"><label>Operation / Product</label><select id="nomOperation" disabled><option>Select work type first</option></select></div>
     <div class="field"><label>Cargo / Product</label><input id="nomCargo" placeholder="Pressurized LPG Mixture"></div><div class="field"><label>Quantity</label><input id="nomQuantity" placeholder="1042 MT +/- 5%"></div>
     <div class="field"><label>Laycan / ETA</label><input id="nomLaycan" placeholder="21-22 Sep 2026"></div><div class="field"><label>Port / Terminal</label><input id="nomPort" placeholder="GES Klang Terminal, Port Klang"></div>
-    <div class="field"><label>Agent</label><input id="nomAgent" placeholder="MV Maritime"></div><div class="field"><label>Client No. / Client Reference *</label><input id="nomClientNo" placeholder="313698 & 313696"><div class="mini">Provided by client. This is separate from our Nomination / Job No.</div></div>
+    <div class="field"><label>Agent</label><input id="nomAgent" placeholder="MV Maritime"></div><div class="field"><label id="nomClientRefLabel">EIMS Ref No. *</label><input id="nomClientNo" placeholder="313698 & 313696"><div class="mini" id="nomClientRefHelp">For LPG / EQUINOR: this is the client reference used in EIMS. It is separate from our Intertek Nomination / Job No.</div></div>
     <div class="field"><label>Survey Type</label><input id="nomSurveyType" placeholder="Quantity"></div><div class="field"><label>Cost Sharing</label><input id="nomCost" placeholder="100% EQUINOR"></div>
   </div><div class="field"><label>Remarks / Special Instructions</label><textarea id="nomRemarks" rows="5" placeholder="Final quality based on paper calculation..."></textarea></div>
   <button class="btn" onclick="saveNomination()">Save Nomination</button> <button class="btn secondary" onclick="showPage('nominations',document.querySelectorAll('.nav button')[1])">Cancel</button></div>`;
@@ -444,6 +446,22 @@ function updateNominationTypes(){
   let types=cat==='Bunkering'?['Bunkering']:cat==='Cargo'?['Chemical','UCO']:cat==='LPG'?['Discharge','Loading','Pipeline Transfer','ITT','Month-End Inventory']:[];
   w.innerHTML='<option value="">Select Work Type</option>'+types.map(x=>`<option>${x}</option>`).join('');
 }
+function updateNominationClientFields(){
+  const cat=document.getElementById('nomCategory');
+  const client=document.getElementById('nomClient');
+  const label=document.getElementById('nomClientRefLabel');
+  const help=document.getElementById('nomClientRefHelp');
+  if(!cat||!client||!label||!help)return;
+  if(cat.value==='LPG'){
+    if(!client.value.trim()) client.value='EQUINOR ASA';
+    label.textContent='EIMS Ref No. *';
+    help.textContent='For LPG / EQUINOR: client reference used in EIMS. Keep it exactly as provided by the client.';
+  }else{
+    label.textContent='Client Ref No. / Client Reference *';
+    help.textContent='Provided by client. This is separate from our Intertek Nomination / Job No.';
+  }
+}
+
 function updateNominationOperations(){
   const c=document.getElementById('nomCategory'), w=document.getElementById('nomWorkType'), o=document.getElementById('nomOperation'); if(!c||!w||!o)return;
   const cat=c.value, work=w.value; let ops=[];
@@ -520,7 +538,7 @@ function renderDashboard(c){
 <div class="card"><div class="card-head"><h3>Recent Jobs</h3>
     <button class="btn secondary" onclick="showPage('jobs',document.querySelectorAll('.nav button')[2])">View All</button></div>
     ${jobTable(jobs.slice().reverse().slice(0,8))}</div>
-    <div class="footer">V8 • Client No. + Our Nomination/Job No. → Confirmation → Surveyor → Customer Submission workflow.</div>`;
+    <div class="footer">V9 • EQUINOR LPG → EIMS Ref No. + Our Nomination/Job No. → Confirmation → Surveyor → Customer Submission workflow.</div>`;
 }
 
 function jobTable(jobs){
@@ -542,7 +560,7 @@ function renderJobDetail(jobNo){
   <div class="formgrid">
    <div class="field"><label>Intertek Job No.</label><input value="${esc(j.jobNo)}" readonly></div>
    <div class="field"><label>Nomination / Intertek Job No.</label><input value="${esc(j.jobNo||'')}" readonly></div>
-   <div class="field"><label>Client</label><input value="${esc(j.client)}" readonly></div><div class="field"><label>Client No.</label><input value="${esc(j.clientNo||j.ref||'')}" readonly></div>
+   <div class="field"><label>Client</label><input value="${esc(j.client)}" readonly></div><div class="field"><label>${j.category==='LPG'?'EIMS Ref No.':'Client Ref No.'}</label><input value="${esc(j.eimsRefNo||j.clientNo||j.ref||'')}" readonly></div>
    <div class="field"><label>Vessel</label><input value="${esc(j.vessel)}" readonly></div>
    <div class="field"><label>Operation</label><input value="${esc(j.workType||'')} / ${esc(j.operation||'')}" readonly></div>
    <div class="field"><label>Laycan / ETA</label><input value="${esc(j.laycan||'')}" readonly></div>
@@ -551,7 +569,7 @@ function renderJobDetail(jobNo){
   </div>
   <div class="subcard"><h3>1. Surveyor Assignment</h3><div class="formgrid"><div class="field"><label>Surveyor Name</label><input id="detailSurveyor" value="${esc(j.surveyor||'')}" placeholder="Surveyor name"></div><div class="field"><label>Intertek Email</label><input id="detailSurveyorEmail" value="${esc(j.surveyorEmail||'')}" placeholder="surveyor@intertek.com"></div></div><button class="btn" onclick="assignSurveyor('${esc(j.jobNo)}')">Save Surveyor Assignment</button></div>
   <div class="subcard"><h3>2. Attendance & Survey</h3><div class="formgrid"><div class="field"><label>Attendance</label><select id="detailAttendance"><option ${j.attendanceStatus==='Pending'?'selected':''}>Pending</option><option ${j.attendanceStatus==='Completed'?'selected':''}>Completed</option></select></div><div class="field"><label>Survey Status</label><select id="detailSurvey"><option ${j.surveyStatus==='Pending'?'selected':''}>Pending</option><option ${j.surveyStatus==='Completed'?'selected':''}>Completed</option></select></div><div class="field"><label>Documents</label><select id="detailDocs"><option ${j.documentsStatus==='Pending'?'selected':''}>Pending</option><option ${j.documentsStatus==='Completed'?'selected':''}>Completed</option></select></div></div><button class="btn" onclick="saveJobProgress('${esc(j.jobNo)}')">Save Progress</button></div>
-  <div class="subcard"><h3>3. Customer System Submission</h3><div class="notice"><b>Customer Job ID is separate from the Intertek Job No.</b><br>The Customer Job ID is used for the customer system upload/submission only.</div><div class="formgrid" style="margin-top:12px"><div class="field"><label>Customer Job ID</label><input id="detailCustomerJobId" value="${esc(j.customerJobId||'')}" placeholder="Import / enter customer job ID"></div><div class="field"><label>Customer Portal</label><input value="${esc((portal&&portal.url)||j.customerPortal||'Not configured')}" readonly></div><div class="field"><label>Upload Status</label><select id="detailUploadStatus"><option ${j.customerUploadStatus==='Not Ready'?'selected':''}>Not Ready</option><option ${j.customerUploadStatus==='Ready for Upload'?'selected':''}>Ready for Upload</option><option ${j.customerUploadStatus==='Uploaded'?'selected':''}>Uploaded</option></select></div></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn" onclick="saveCustomerSubmission('${esc(j.jobNo)}')">Save Customer ID / Status</button>${portal&&portal.url?`<button class="btn secondary" onclick="window.open('${esc(portal.url)}','_blank')">🌐 Open Customer System</button>`:''}</div><div class="mini" style="margin-top:8px">This static application does not store customer passwords.</div></div>
+  <div class="subcard"><h3>3. Customer System Submission</h3><div class="notice"><b>EQUINOR LPG jobs use EIMS.</b><br>EIMS Ref No. is the client reference. The EIMS Job ID / Customer Job ID below is used only for the EIMS customer-system submission and remains separate from the Intertek Job No.</div><div class="formgrid" style="margin-top:12px"><div class="field"><label>EIMS Job ID / Customer Job ID</label><input id="detailCustomerJobId" value="${esc(j.customerJobId||'')}" placeholder="Import / enter customer job ID"></div><div class="field"><label>Customer Portal</label><input value="${esc((portal&&portal.url)||j.customerPortal||'Not configured')}" readonly></div><div class="field"><label>Upload Status</label><select id="detailUploadStatus"><option ${j.customerUploadStatus==='Not Ready'?'selected':''}>Not Ready</option><option ${j.customerUploadStatus==='Ready for Upload'?'selected':''}>Ready for Upload</option><option ${j.customerUploadStatus==='Uploaded'?'selected':''}>Uploaded</option></select></div></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn" onclick="saveCustomerSubmission('${esc(j.jobNo)}')">Save Customer ID / Status</button>${portal&&portal.url?`<button class="btn secondary" onclick="window.open('${esc(portal.url)}','_blank')">🌐 Open Customer System</button>`:''}</div><div class="mini" style="margin-top:8px">This static application does not store customer passwords.</div></div>
   <div class="subcard"><h3>4. Close Job</h3><button class="btn" onclick="closeJob('${esc(j.jobNo)}')">✓ Close Job</button></div>
   </div>`;
 }
@@ -777,7 +795,7 @@ function renderAdmin(c){
     </div>
     <div class="card" style="background:#fff8d6">
       <h3>Customer Portal Links</h3><div class="muted">Store only the customer portal URL. Never store customer passwords here.</div>
-      <div class="formgrid" style="margin-top:10px"><div class="field"><label>Customer</label><input id="portalClient" value="EQUINOR ASA"></div><div class="field"><label>Portal URL</label><input id="portalUrl" placeholder="https://..."></div></div><button class="btn" onclick="savePortalLink()">Save Portal Link</button>
+      <div class="formgrid" style="margin-top:10px"><div class="field"><label>Customer</label><input id="portalClient" value="EQUINOR ASA"></div><div class="field"><label>Customer System</label><input id="portalSystem" value="EIMS"></div><div class="field"><label>Portal URL</label><input id="portalUrl" placeholder="https://..."></div></div><button class="btn" onclick="savePortalLink()">Save Portal Link</button>
     </div>
     <div class="card">
       <h3>Surveyors</h3>
