@@ -179,6 +179,10 @@ a{color:#8a6a00}
 .table tr:hover td{background:#fff9d9 !important}
 </style>
 
+
+<style>
+@media(max-width:800px){#clientContacts .contact-row{grid-template-columns:1fr 1fr!important}.contact-row button,.contact-row label{grid-column:auto}}
+</style>
 </head>
 <body>
 
@@ -241,7 +245,7 @@ a{color:#8a6a00}
 </div>
 
 <div id="toast" class="toast hidden"></div><div style="display:none">INTERTEK INSPECTOR • Yellow/Black Theme</div>
-<div id="buildVersion" style="display:none">INTERTEK INSPECTOR V6 • FULL JOB WORKFLOW</div>
+<div id="buildVersion" style="display:none">INTERTEK INSPECTOR V15 • CLIENT CONTACTS</div>
 
 <script>
 const STORAGE_KEY='intertek_survey_jobs_v1';
@@ -253,7 +257,7 @@ const PORTAL_KEY='intertek_customer_portals_v1';
 const CLIENT_KEY='intertek_clients_v1';
 const DEFAULT_JOB_CONTROL={prefix:'ITSPK/H',nextNo:2165,year:2026};
 const DEFAULT_PORTALS=[{client:'EQUINOR ASA',system:'EIMS',url:'',active:true}];
-const DEFAULT_CLIENTS=[{id:'EQUINOR ASA',name:'EQUINOR ASA',code:'EQUINOR',contact:'',email:'',phone:'',system:'EIMS',portalUrl:'',active:true}];
+const DEFAULT_CLIENTS=[{id:'EQUINOR ASA',name:'EQUINOR ASA',code:'EQUINOR',contact:'',contacts:[],email:'',phone:'',system:'EIMS',portalUrl:'',active:true}];
 const DEFAULT_ADMIN={username:'harivel.ganisan@intertek.com',password:'Intertek@2026',role:'Admin',name:'Harivel Ganisan'};
 
 function getUsers(){
@@ -589,48 +593,113 @@ function getPortals(){try{const x=JSON.parse(localStorage.getItem(PORTAL_KEY)||'
 function savePortals(x){localStorage.setItem(PORTAL_KEY,JSON.stringify(x))}
 function getPortalFor(client){return getPortals().find(x=>String(x.client).toLowerCase()===String(client||'').toLowerCase()&&x.active)||null}
 
+function normalizeClientName(value){
+  const raw=String(value||'').trim();
+  if(!raw)return '';
+  // Keep common company acronyms in uppercase while capitalising normal words.
+  const acronyms=new Set(['ASA','AS','PTE','LTD','SDN','BHD','LLC','INC','PLC','BV','AG','SA','GMBH','CO','KG','KK','MY']);
+  return raw.split(/\s+/).map(w=>{
+    const clean=w.replace(/([,.()])/g,'');
+    const upper=clean.toUpperCase();
+    if(acronyms.has(upper)) return upper;
+    return w.charAt(0).toUpperCase()+w.slice(1);
+  }).join(' ');
+}
 function getClients(){
   try{
     const x=JSON.parse(localStorage.getItem(CLIENT_KEY)||'null');
-    if(Array.isArray(x)&&x.length)return x;
+    if(Array.isArray(x)&&x.length){
+      let changed=false;
+      x.forEach(c=>{
+        if(!Array.isArray(c.contacts)){
+          c.contacts=[];
+          if(c.contact||c.email||c.phone){
+            c.contacts=[{name:c.contact||'',email:c.email||'',phone:c.phone||'',primary:true}];
+          }
+          changed=true;
+        }
+        if(!c.name) return;
+        const nn=normalizeClientName(c.name);
+        if(nn!==c.name){c.name=nn;changed=true;}
+        if(!c.contacts.length && (c.email||c.phone)){c.contacts=[{name:'',email:c.email||'',phone:c.phone||'',primary:true}];changed=true;}
+      });
+      if(changed) localStorage.setItem(CLIENT_KEY,JSON.stringify(x));
+      return x;
+    }
   }catch(e){}
   localStorage.setItem(CLIENT_KEY,JSON.stringify(DEFAULT_CLIENTS));
   return DEFAULT_CLIENTS;
 }
 function saveClients(x){localStorage.setItem(CLIENT_KEY,JSON.stringify(x))}
 function clientByName(name){return getClients().find(x=>String(x.name).toLowerCase()===String(name||'').toLowerCase()&&x.active)||null}
+function getClientContacts(client){
+  if(!client)return [];
+  if(Array.isArray(client.contacts)&&client.contacts.length)return client.contacts;
+  if(client.contact||client.email||client.phone)return [{name:client.contact||'',email:client.email||'',phone:client.phone||'',primary:true}];
+  return [];
+}
+function addClientContactRow(name='',email='',phone='',primary=false){
+  const box=document.getElementById('clientContacts'); if(!box)return;
+  const row=document.createElement('div'); row.className='contact-row'; row.style.cssText='display:grid;grid-template-columns:1.2fr 1.2fr .9fr auto auto;gap:8px;align-items:center;margin-top:8px';
+  row.innerHTML=`<input class="contact-name" value="${esc(name)}" placeholder="Contact name">
+    <input class="contact-email" type="email" value="${esc(email)}" placeholder="Email">
+    <input class="contact-phone" value="${esc(phone)}" placeholder="Phone">
+    <label style="font-size:12px;white-space:nowrap"><input type="radio" name="clientPrimary" ${primary?'checked':''}> Primary</label>
+    <button type="button" class="btn secondary" onclick="this.closest('.contact-row').remove();ensurePrimaryContact()">Remove</button>`;
+  box.appendChild(row);
+}
+function ensurePrimaryContact(){
+  const rows=[...document.querySelectorAll('#clientContacts .contact-row')];
+  if(rows.length && !rows.some(r=>r.querySelector('input[type=radio]')?.checked)) rows[0].querySelector('input[type=radio]').checked=true;
+}
+function collectClientContacts(){
+  const rows=[...document.querySelectorAll('#clientContacts .contact-row')];
+  return rows.map(r=>({name:r.querySelector('.contact-name').value.trim(),email:r.querySelector('.contact-email').value.trim(),phone:r.querySelector('.contact-phone').value.trim(),primary:r.querySelector('input[type=radio]').checked})).filter(x=>x.name||x.email||x.phone);
+}
 function renderClients(c, editIndex=-1){
   const clients=getClients();
   const edit=editIndex>=0?clients[editIndex]:null;
+  const contacts=getClientContacts(edit);
   c.innerHTML=`<div class="card">
     <div class="toolbar"><div><h3>Client Register</h3><div class="muted">Register all Intertek clients here. EIMS is available only for EQUINOR ASA.</div></div><span class="status complete">${clients.filter(x=>x.active).length} ACTIVE</span></div>
     <div class="card" style="background:#f7fafc">
       <h3>${edit?'Edit Client':'Register New Client'}</h3>
       <div class="formgrid" style="margin-top:10px">
-        <div class="field"><label>Client Name *</label><input id="clientName" value="${esc(edit?.name||'')}" placeholder="EQUINOR ASA"></div>
+        <div class="field"><label>Client Name *</label><input id="clientName" value="${esc(edit?.name||'')}" placeholder="EQUINOR ASA" onblur="this.value=normalizeClientName(this.value)"></div>
         <div class="field"><label>Client Code</label><input id="clientCode" value="${esc(edit?.code||'')}" placeholder="EQUINOR"></div>
-        <div class="field"><label>Contact Person</label><input id="clientContact" value="${esc(edit?.contact||'')}" placeholder="Capt. Roy"></div>
-        <div class="field"><label>Client Email</label><input id="clientEmail" type="email" value="${esc(edit?.email||'')}" placeholder="client@example.com"></div>
-        <div class="field"><label>Phone</label><input id="clientPhone" value="${esc(edit?.phone||'')}" placeholder="+60 ..."></div>
+        <div class="field"><label>General Client Email</label><input id="clientEmail" type="email" value="${esc(edit?.email||'')}" placeholder="general@client.com"></div>
+        <div class="field"><label>General Phone</label><input id="clientPhone" value="${esc(edit?.phone||'')}" placeholder="+60 ..."></div>
         <div class="field"><label>Customer System</label><input id="clientSystem" value="${esc(edit?.system||'')}" placeholder="Leave blank if none" ${edit?.name==='EQUINOR ASA'?'readonly':''}></div>
-        <div class="field" style="grid-column:1/-1"><label>Customer Portal URL</label><input id="clientPortalUrl" value="${esc(edit?.portalUrl||'')}" placeholder="https://..."></div>
+        <div class="field"><label>Customer Portal URL</label><input id="clientPortalUrl" value="${esc(edit?.portalUrl||'')}" placeholder="https://..."></div>
+      </div>
+      <div class="subcard" style="margin-top:12px"><div class="toolbar"><div><h4 style="margin:0">Contact Persons</h4><div class="muted">A client can have multiple contacts. Add each person separately and select one Primary contact.</div></div><button type="button" class="btn secondary" onclick="addClientContactRow();ensurePrimaryContact()">+ Add Contact</button></div>
+        <div id="clientContacts"></div>
       </div>
       <div class="notice" style="margin-top:10px"><b>EQUINOR ASA:</b> Customer System = <b>EIMS</b>. Other clients are registered normally and do not get EIMS fields unless a future customer system is configured.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn" onclick="saveClient(${editIndex})">${edit?'Save Changes':'Register Client'}</button>${edit?`<button class="btn secondary" onclick="renderClients(document.getElementById('content'))">Cancel</button>`:''}</div>
     </div>
     <div class="card"><h3>Registered Clients</h3>
-      ${clients.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Client</th><th>Code</th><th>Contact</th><th>Email</th><th>System</th><th>Status</th><th>Action</th></tr></thead><tbody>${clients.map((x,i)=>`<tr><td><b>${esc(x.name)}</b></td><td>${esc(x.code||'—')}</td><td>${esc(x.contact||'—')}</td><td>${esc(x.email||'—')}</td><td>${x.name==='EQUINOR ASA'?'<b>EIMS</b>':esc(x.system||'—')}</td><td><span class="status ${x.active?'complete':'open'}">${x.active?'Active':'Inactive'}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn secondary" onclick="renderClients(document.getElementById('content'),${i})">Edit</button><button class="btn secondary" style="border-color:#d33;color:#b21f1f" onclick="deleteClient(${i})">Delete</button></div></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No clients registered.</div>'}
+      ${clients.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Client</th><th>Code</th><th>Contacts</th><th>Email</th><th>System</th><th>Status</th><th>Action</th></tr></thead><tbody>${clients.map((x,i)=>{const cc=getClientContacts(x);return `<tr><td><b>${esc(x.name)}</b></td><td>${esc(x.code||'—')}</td><td>${cc.length?esc(cc.map(c=>(c.name||c.email||'Contact')+(c.primary?' (Primary)':'')).join(', ')):'—'}</td><td>${esc(x.email||'—')}</td><td>${x.name==='EQUINOR ASA'?'<b>EIMS</b>':esc(x.system||'—')}</td><td><span class="status ${x.active?'complete':'open'}">${x.active?'Active':'Inactive'}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn secondary" onclick="renderClients(document.getElementById('content'),${i})">Edit</button><button class="btn secondary" style="border-color:#d33;color:#b21f1f" onclick="deleteClient(${i})">Delete</button></div></td></tr>`}).join('')}</tbody></table></div>`:'<div class="empty">No clients registered.</div>'}
     </div>
   </div>`;
+  const box=document.getElementById('clientContacts');
+  if(contacts.length) contacts.forEach(x=>addClientContactRow(x.name,x.email,x.phone,!!x.primary));
+  else addClientContactRow();
+  ensurePrimaryContact();
 }
 function saveClient(index){
-  const name=document.getElementById('clientName').value.trim();
+  const nameEl=document.getElementById('clientName');
+  const name=normalizeClientName(nameEl.value);
+  nameEl.value=name;
   if(!name){toast('Please enter Client Name');return;}
   const clients=getClients();
   const duplicate=clients.findIndex((x,i)=>i!==index&&String(x.name).toLowerCase()===name.toLowerCase());
   if(duplicate>=0){toast('Client already registered');return;}
+  const contacts=collectClientContacts();
+  if(contacts.length && !contacts.some(x=>x.primary)) contacts[0].primary=true;
+  const primary=contacts.find(x=>x.primary)||contacts[0]||{};
   const system=name.toUpperCase()==='EQUINOR ASA'?'EIMS':document.getElementById('clientSystem').value.trim();
-  const item={id:(index>=0&&clients[index].id)||name,name,code:document.getElementById('clientCode').value.trim(),contact:document.getElementById('clientContact').value.trim(),email:document.getElementById('clientEmail').value.trim(),phone:document.getElementById('clientPhone').value.trim(),system,portalUrl:document.getElementById('clientPortalUrl').value.trim(),active:true};
+  const item={id:(index>=0&&clients[index].id)||name,name,code:document.getElementById('clientCode').value.trim(),contact:primary.name||'',contacts,email:document.getElementById('clientEmail').value.trim()||primary.email||'',phone:document.getElementById('clientPhone').value.trim()||primary.phone||'',system,portalUrl:document.getElementById('clientPortalUrl').value.trim(),active:true};
   if(index>=0)clients[index]=item;else clients.push(item);
   saveClients(clients);
   if(name.toUpperCase()==='EQUINOR ASA'){
