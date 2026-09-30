@@ -222,9 +222,8 @@ a{color:#8a6a00}
     <div class="brand">INTERTEK<small>INSPECTOR</small></div>
     <div class="nav">
       <button class="active" onclick="showPage('dashboard',this)">📊 Dashboard</button>
-      <button onclick="showPage('nominations',this)">📥 Nominations</button>
+      <button onclick="showPage('workhub',this)">📥 Jobs / Nomination</button>
       <button onclick="showPage('jobs',this)">📋 All Jobs</button>
-      <button onclick="showPage('create',this)">➕ Create Job</button>
       <button onclick="showPage('vessels',this)">🚢 Vessels</button>
       <button onclick="showPage('clients',this)">👥 Clients</button>
       <button onclick="showPage('documents',this)">📄 Documents</button>
@@ -245,7 +244,7 @@ a{color:#8a6a00}
 </div>
 
 <div id="toast" class="toast hidden"></div><div style="display:none">INTERTEK INSPECTOR • Yellow/Black Theme</div>
-<div id="buildVersion" style="display:none">INTERTEK INSPECTOR V15 • CLIENT CONTACTS</div>
+<div id="buildVersion" style="display:none">INTERTEK INSPECTOR V17 • JOBS / NOMINATION COMBINED</div>
 
 <script>
 const STORAGE_KEY='intertek_survey_jobs_v1';
@@ -731,10 +730,11 @@ function toast(msg){
 function showPage(page,btn){
   document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
   if(btn)btn.classList.add('active');
-  const titles={dashboard:'Dashboard',nominations:'Nominations',jobs:'All Jobs',create:'Create New Job',vessels:'Vessels',clients:'Clients',documents:'Documents',reports:'Reports',admin:'Admin Control',settings:'Settings'};
+  const titles={dashboard:'Dashboard',workhub:'Jobs / Nomination',nominations:'Nomination Inbox',jobs:'All Jobs',create:'Create New Job',vessels:'Vessels',clients:'Clients',documents:'Documents',reports:'Reports',admin:'Admin Control',settings:'Settings'};
   document.getElementById('pageTitle').textContent=titles[page]||'Dashboard';
   const c=document.getElementById('content');
   if(page==='dashboard')renderDashboard(c);
+  else if(page==='workhub')renderWorkHub(c);
   else if(page==='nominations')renderNominations(c);
   else if(page==='jobs')renderJobs(c);
   else if(page==='create')renderCreate(c);
@@ -743,12 +743,32 @@ function showPage(page,btn){
   else renderPlaceholder(c,titles[page]);
 }
 
+function renderWorkHub(c){
+  c.innerHTML=`
+  <div class="card">
+    <div class="card-head"><div><h3>Jobs / Nomination</h3><div class="muted">Select how the job starts. Vessel jobs come through the client nomination workflow; all other jobs can be created directly.</div></div><span class="status open">JOB START</span></div>
+    <div class="formgrid" style="margin-top:14px">
+      <div class="subcard" style="cursor:pointer" onclick="showPage('nominations',document.querySelectorAll('.nav button')[1])">
+        <h3>🚢 Vessel Job / Nomination</h3>
+        <div class="muted" style="margin-top:6px">For vessel jobs received from clients. Import the nomination email, assign the Intertek running job number, edit/review the details, reply to the client and confirm the job.</div>
+        <div style="margin-top:12px"><button class="btn" type="button">Open Nomination Inbox</button></div>
+      </div>
+      <div class="subcard" style="cursor:pointer" onclick="showPage('create',document.querySelectorAll('.nav button')[1])">
+        <h3>📋 Other Job / Create Job</h3>
+        <div class="muted" style="margin-top:6px">For jobs that are not started from a vessel nomination. Create the Intertek job directly and select the required category, work type and operation.</div>
+        <div style="margin-top:12px"><button class="btn" type="button">Create New Job</button></div>
+      </div>
+    </div>
+  </div>
+  <div class="card"><div class="card-head"><h3>Current Running Job No.</h3></div><div class="notice"><b>${esc(nextJobNo())}</b> is the next available Intertek running number. The number is consumed only when the nomination/job is saved.</div></div>`;
+}
+
 function renderDashboard(c){
   const jobs=getJobs(), open=jobs.filter(j=>j.status==='Open').length, done=jobs.filter(j=>j.status==='Completed').length;
   const today=new Date().toISOString().slice(0,10);
   c.innerHTML=`
     <div class="hero"><div><h2>Intertek Inspector</h2><p>Manage inspection and marine survey jobs from one place.</p></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="showPage('nominations',document.querySelectorAll('.nav button')[1])">📥 Nomination Inbox</button><button class="btn" onclick="showPage('create',document.querySelectorAll('.nav button')[3])">+ Create New Job</button></div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="showPage('workhub',document.querySelectorAll('.nav button')[1])">📥 Jobs / Nomination</button></div></div>
     <div class="kpis">
       <div class="kpi"><div class="label">TOTAL JOBS</div><div class="num">${jobs.length}</div></div>
       <div class="kpi"><div class="label">OPEN JOBS</div><div class="num">${open}</div></div>
@@ -766,7 +786,7 @@ function renderDashboard(c){
 <div class="card"><div class="card-head"><h3>Recent Jobs</h3>
     <button class="btn secondary" onclick="showPage('jobs',document.querySelectorAll('.nav button')[2])">View All</button></div>
     ${jobTable(jobs.slice().reverse().slice(0,8))}</div>
-    <div class="footer">INTERTEK INSPECTOR • Client Register → Nomination → Job → Survey → Customer Submission. EIMS is only for EQUINOR ASA.</div>`;
+    <div class="footer">INTERTEK INSPECTOR • Client Register → Jobs / Nomination → Job → Survey → Customer Submission. EIMS is only for EQUINOR ASA.</div>`;
 }
 
 function jobTable(jobs){
@@ -790,7 +810,7 @@ function deleteJob(jobNo){
 
 function renderJobs(c){
   const jobs=getJobs();
-  c.innerHTML=`<div class="card"><div class="toolbar"><div><h3>All Jobs</h3><div class="muted">Confirmed nominations become Intertek jobs and continue through survey and customer submission.</div></div><button class="btn" onclick="showPage('nominations',document.querySelectorAll('.nav button')[1])">📥 Nominations</button></div>${jobTable(jobs.slice().reverse())}</div>`;
+  c.innerHTML=`<div class="card"><div class="toolbar"><div><h3>All Jobs</h3><div class="muted">Confirmed nominations become Intertek jobs and continue through survey and customer submission.</div></div><button class="btn" onclick="showPage('workhub',document.querySelectorAll('.nav button')[1])">📥 Jobs / Nomination</button></div>${jobTable(jobs.slice().reverse())}</div>`;
 }
 function renderJobDetail(jobNo){
   const j=getJobs().find(x=>x.jobNo===jobNo); if(!j){toast('Job not found');return;}
@@ -955,7 +975,7 @@ function openPipelineTransferWorkflow(){
     ${pipelineField('ptNodStatus','NOD Status','Auto calculated')}${pipelineField('ptNodMetric','NOD Metric','Metric tons (in Air)')}
     ${pipelineField('ptNodDifference','NOD Difference','', 'number','0.001')}${pipelineField('ptNodPercent','NOD %','', 'number','0.01')}
   </div><div class="footer">The NOD section is populated from the quantity comparison and can be reviewed before final issue.</div></div>
-  <div class="actions" style="margin-top:14px"><button class="btn" onclick="savePipelineTransferJob()">Save Pipeline Transfer Job</button><button class="btn secondary" onclick="previewPipelineTransferReport()">Preview Report Package</button><button class="btn secondary" onclick="showPage('create',document.querySelectorAll('.nav button')[3])">Back</button></div>
+  <div class="actions" style="margin-top:14px"><button class="btn" onclick="savePipelineTransferJob()">Save Pipeline Transfer Job</button><button class="btn secondary" onclick="previewPipelineTransferReport()">Preview Report Package</button><button class="btn secondary" onclick="showPage('workhub',document.querySelectorAll('.nav button')[1])">Back</button></div>
   <div id="ptReportPreview" style="margin-top:14px"></div>
   </div>`;
   window._pipelineBase=base;
