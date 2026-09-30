@@ -540,7 +540,7 @@ function renderNominationForm(existing=null,index=null){
   c.innerHTML=`<div class="card"><div class="card-head"><div><h3>${edit?'Edit Client Nomination':'New Client Nomination'}</h3><div class="muted">${edit?'Edit the saved nomination details. The Intertek Job No. stays unchanged. If the job is already confirmed, linked job details are updated too.':'Start here when a nomination arrives by email. Paste the received email, extract the details, review, then save.'}</div></div><span class="status ${d.status==='Confirmed'?'complete':'open'}">${esc(d.status||'RECEIVED')}</span></div>
   ${edit?`<div class="card" style="background:#f5f7fa"><b>Received Nomination Email</b><div class="formgrid" style="margin-top:10px"><div class="field"><label>From</label><input value="${esc(d.senderEmail||'')}" readonly></div><div class="field"><label>Original Subject</label><input value="${esc(d.emailSubject||'')}" readonly></div></div><textarea id="nominationEmailText" rows="6" readonly style="margin-top:10px;width:100%;background:#fff">${esc(d.emailText||'')}</textarea></div>`:`<div class="card" style="background:#fff8d6"><b>Import / review nomination email</b><p class="muted">Paste the nomination email or choose a text/HTML/EML file. Use Extract Details, then review before saving.</p><input type="file" accept=".txt,.html,.htm,.eml" onchange="readNominationFile(this)"><textarea id="nominationEmailText" rows="7" placeholder="Paste client nomination email here..." style="margin-top:10px;width:100%">${esc(d.emailText||'')}</textarea><button class="btn secondary" style="margin-top:8px" onclick="parseNominationText()">Extract Details</button></div>`}
   <div class="formgrid">
-    <div class="field"><label>Our Nomination / Intertek Job No.</label><input id="nomPreviewJobNo" value="${esc(d.jobNo||nextJobNo())}" readonly><div class="mini">Same number from nomination start to job close.</div></div><div class="field"><label>Received Date (DD/MM/YYYY)</label><input id="nomReceivedDate" type="text" inputmode="numeric" maxlength="10" value="${esc(isoToDMY(d.receivedDate||today))}" placeholder="DD/MM/YYYY"></div>
+    <div class="field"><label>Our Nomination / Intertek Job No.</label><input id="nomPreviewJobNo" value="${esc(d.jobNo||nextJobNo())}" readonly><div class="mini">Same number from nomination start to job close.</div></div><div class="field"><label>Received Date (DD/MM/YYYY)</label><input id="nomReceivedDate" type="text" inputmode="numeric" maxlength="10" value="${esc(isoToDMY(d.receivedDate||today))}" placeholder="DD/MM/YYYY" oninput="formatDMY(this)"></div>
     <div class="field"><label>Client *</label><select id="nomClient" onchange="updateNominationClientFields()">${nominationClientOptions(d.client||'')}</select><div class="mini">Select from registered Clients.</div></div><div class="field"><label>Vessel *</label><input id="nomVessel" value="${esc(d.vessel||'')}" placeholder="GAS INFINITY"></div>
     <div class="field"><label>IMO No.</label><input id="nomIMO" value="${esc(d.imo||'')}" placeholder="IMO number"></div><div class="field"><label>Job Category *</label><select id="nomCategory" onchange="updateNominationTypes();updateNominationClientFields()"><option value="">Select Category</option><option>Bunkering</option><option>Cargo</option><option>LPG</option></select></div>
     <div class="field"><label>Work Type *</label><select id="nomWorkType" onchange="updateNominationOperations()" disabled><option>Select category first</option></select></div><div class="field"><label>Operation / Product</label><select id="nomOperation" disabled><option>Select work type first</option></select></div>
@@ -658,6 +658,33 @@ function consumeNextJobNo(){
 function getPortals(){try{const x=JSON.parse(localStorage.getItem(PORTAL_KEY)||'null');return Array.isArray(x)?x:DEFAULT_PORTALS}catch(e){return DEFAULT_PORTALS}}
 function savePortals(x){localStorage.setItem(PORTAL_KEY,JSON.stringify(x))}
 function getPortalFor(client){return getPortals().find(x=>String(x.client).toLowerCase()===String(client||'').toLowerCase()&&x.active)||null}
+
+function isoToDMY(value){
+  const v=String(value||'').trim();
+  if(!v)return '';
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(v))return v;
+  const m=v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m?`${m[3]}/${m[2]}/${m[1]}`:v;
+}
+function dmyToISO(value){
+  const v=String(value||'').trim();
+  const m=v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if(!m)return '';
+  const dd=Number(m[1]), mm=Number(m[2]), yyyy=Number(m[3]);
+  const dt=new Date(Date.UTC(yyyy,mm-1,dd));
+  if(dt.getUTCFullYear()!==yyyy||dt.getUTCMonth()!==mm-1||dt.getUTCDate()!==dd)return '';
+  return `${yyyy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+}
+function formatDMY(input){
+  let v=String(input.value||'').replace(/\D/g,'').slice(0,8);
+  if(v.length>4)v=v.slice(0,2)+'/'+v.slice(2,4)+'/'+v.slice(4);
+  else if(v.length>2)v=v.slice(0,2)+'/'+v.slice(2);
+  input.value=v;
+}
+function nominationClientOptions(selected=''){
+  const clients=getClients().filter(c=>c.active!==false);
+  return '<option value="">Select client</option>'+clients.map(c=>`<option value="${esc(c.name)}" ${String(c.name).toLowerCase()===String(selected||'').toLowerCase()?'selected':''}>${esc(c.name)}</option>`).join('');
+}
 
 function normalizeClientName(value){
   const raw=String(value||'').trim();
@@ -861,7 +888,7 @@ function jobTable(jobs){
   if(!jobs.length)return '<div class="empty">No jobs created yet.</div>';
   return `<div class="table-wrap"><table class="table"><thead><tr><th>Job No</th><th>Client</th><th>Vessel</th><th>Operation</th><th>Surveyor</th><th>Customer ID</th><th>Status</th><th>Open</th></tr></thead><tbody>${jobs.map(j=>`<tr>
   <td><b>${esc(j.jobNo)}</b><div class="mini">Nomination = Job No.</div></td><td>${esc(j.client)}</td><td>${esc(j.vessel)}</td><td>${esc(j.workType)} / ${esc(j.operation)}</td><td>${esc(j.surveyor||'Not assigned')}</td><td>${esc(j.customerJobId||'—')}</td>
-  <td><span class="status ${j.status==='Completed'?'complete':'open'}">${esc(j.status)}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn secondary" onclick="renderJobDetail('${esc(j.jobNo)}')">Open</button><button class="btn danger" onclick="deleteJob('${esc(j.jobNo)}')">Delete</button></div></td></tr>`).join('')}</tbody></table></div>`;
+  <td><span class="status ${j.status==='Completed'?'complete':'open'}">${esc(j.status)}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn secondary" onclick="renderJobDetail('${esc(j.jobNo)}')">Open</button><button class="btn secondary" onclick="renderJobDetail('${esc(j.jobNo)}');setTimeout(()=>document.getElementById('reportSurveyor')?.scrollIntoView({behavior:'smooth'}),100)">Report</button><button class="btn danger" onclick="deleteJob('${esc(j.jobNo)}')">Delete</button></div></td></tr>`).join('')}</tbody></table></div>`;
 }
 function deleteJob(jobNo){
   const key=String(jobNo||'').trim();
@@ -899,7 +926,7 @@ function renderJobDetail(jobNo){
   <div class="subcard"><h3>1. Surveyor Assignment</h3><div class="formgrid"><div class="field"><label>Surveyor Name</label><input id="detailSurveyor" value="${esc(j.surveyor||'')}" placeholder="Surveyor name"></div><div class="field"><label>Intertek Email</label><input id="detailSurveyorEmail" value="${esc(j.surveyorEmail||'')}" placeholder="surveyor@intertek.com"></div></div><button class="btn" onclick="assignSurveyor('${esc(j.jobNo)}')">Save Surveyor Assignment</button></div>
   <div class="subcard"><h3>2. Attendance & Survey</h3><div class="formgrid"><div class="field"><label>Attendance</label><select id="detailAttendance"><option ${j.attendanceStatus==='Pending'?'selected':''}>Pending</option><option ${j.attendanceStatus==='Completed'?'selected':''}>Completed</option></select></div><div class="field"><label>Survey Status</label><select id="detailSurvey"><option ${j.surveyStatus==='Pending'?'selected':''}>Pending</option><option ${j.surveyStatus==='Completed'?'selected':''}>Completed</option></select></div><div class="field"><label>Documents</label><select id="detailDocs"><option ${j.documentsStatus==='Pending'?'selected':''}>Pending</option><option ${j.documentsStatus==='Completed'?'selected':''}>Completed</option></select></div></div><button class="btn" onclick="saveJobProgress('${esc(j.jobNo)}')">Save Progress</button></div>
   <div class="subcard"><h3>3. Customer System Submission</h3><div class="notice"><b>EQUINOR LPG jobs use EIMS.</b><br>EIMS Ref No. is the client reference. The EIMS Job ID / Customer Job ID below is used only for the EIMS customer-system submission and remains separate from the Intertek Job No.</div><div class="formgrid" style="margin-top:12px"><div class="field"><label>EIMS Job ID / Customer Job ID</label><input id="detailCustomerJobId" value="${esc(j.customerJobId||'')}" placeholder="Import / enter customer job ID"></div><div class="field"><label>Customer Portal</label><input value="${esc((portal&&portal.url)||j.customerPortal||'Not configured')}" readonly></div><div class="field"><label>Upload Status</label><select id="detailUploadStatus"><option ${j.customerUploadStatus==='Not Ready'?'selected':''}>Not Ready</option><option ${j.customerUploadStatus==='Ready for Upload'?'selected':''}>Ready for Upload</option><option ${j.customerUploadStatus==='Uploaded'?'selected':''}>Uploaded</option></select></div></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn" onclick="saveCustomerSubmission('${esc(j.jobNo)}')">Save Customer ID / Status</button>${portal&&portal.url?`<button class="btn secondary" onclick="window.open('${esc(portal.url)}','_blank')">🌐 Open Customer System</button>`:''}</div><div class="mini" style="margin-top:8px">This static application does not store customer passwords.</div></div>
-  <div class="subcard"><h3>4. Surveyor Report</h3><div class="muted">Upload the completed surveyor report against this Intertek Job No. Multiple report records can be kept if required.</div><div class="formgrid" style="margin-top:12px"><div class="field"><label>Surveyor</label><input id="reportSurveyor" value="${esc(j.surveyor||'')}" placeholder="Surveyor name"></div><div class="field"><label>Report No.</label><input id="reportNo" value="${esc(j.surveyorReportNo||'')}" placeholder="Report number"></div><div class="field"><label>Report Date (DD/MM/YYYY)</label><input id="reportDate" type="text" inputmode="numeric" maxlength="10" value="${esc(isoToDMY(j.surveyorReportDate||''))}" placeholder="DD/MM/YYYY"></div><div class="field"><label>Status</label><select id="reportStatus"><option>Uploaded</option><option>Pending</option></select></div><div class="field" style="grid-column:1/-1"><label>Surveyor Report File</label><input id="reportFile" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"></div></div><button class="btn" onclick="saveSurveyorReport('${esc(j.jobNo)}')">Save Surveyor Report</button>${getReportsForJob(j.jobNo).length?`<div class="table-wrap" style="margin-top:12px"><table class="table"><thead><tr><th>Report No.</th><th>Date</th><th>Surveyor</th><th>File</th><th>Status</th><th>Action</th></tr></thead><tbody>${getReportsForJob(j.jobNo).slice().reverse().map(r=>`<tr><td>${esc(r.reportNo||'—')}</td><td>${esc(isoToDMY(r.reportDate||''))}</td><td>${esc(r.surveyor||'—')}</td><td>${esc(r.fileName||'—')}</td><td>${esc(r.status||'Saved')}</td><td><div style="display:flex;gap:6px">${r.fileData?`<button class="btn secondary" onclick="openSurveyorReport('${esc(r.id)}')">Open</button>`:''}<button class="btn danger" onclick="deleteSurveyorReport('${esc(r.id)}')">Delete</button></div></td></tr>`).join('')}</tbody></table></div>`:''}</div>
+  <div class="subcard"><h3>4. Surveyor Report</h3><div class="muted">Upload the completed surveyor report against this Intertek Job No. Multiple report records can be kept if required.</div><div class="formgrid" style="margin-top:12px"><div class="field"><label>Surveyor</label><input id="reportSurveyor" value="${esc(j.surveyor||'')}" placeholder="Surveyor name"></div><div class="field"><label>Report No.</label><input id="reportNo" value="${esc(j.surveyorReportNo||'')}" placeholder="Report number"></div><div class="field"><label>Report Date (DD/MM/YYYY)</label><input id="reportDate" type="text" inputmode="numeric" maxlength="10" value="${esc(isoToDMY(j.surveyorReportDate||''))}" placeholder="DD/MM/YYYY" oninput="formatDMY(this)"></div><div class="field"><label>Status</label><select id="reportStatus"><option>Uploaded</option><option>Pending</option></select></div><div class="field" style="grid-column:1/-1"><label>Surveyor Report File</label><input id="reportFile" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"></div></div><button class="btn" onclick="saveSurveyorReport('${esc(j.jobNo)}')">Save Surveyor Report</button>${getReportsForJob(j.jobNo).length?`<div class="table-wrap" style="margin-top:12px"><table class="table"><thead><tr><th>Report No.</th><th>Date</th><th>Surveyor</th><th>File</th><th>Status</th><th>Action</th></tr></thead><tbody>${getReportsForJob(j.jobNo).slice().reverse().map(r=>`<tr><td>${esc(r.reportNo||'—')}</td><td>${esc(isoToDMY(r.reportDate||''))}</td><td>${esc(r.surveyor||'—')}</td><td>${esc(r.fileName||'—')}</td><td>${esc(r.status||'Saved')}</td><td><div style="display:flex;gap:6px">${r.fileData?`<button class="btn secondary" onclick="openSurveyorReport('${esc(r.id)}')">Open</button>`:''}<button class="btn danger" onclick="deleteSurveyorReport('${esc(r.id)}')">Delete</button></div></td></tr>`).join('')}</tbody></table></div>`:''}</div>
   <div class="subcard"><h3>5. Close Job</h3><button class="btn" onclick="closeJob('${esc(j.jobNo)}')">✓ Close Job</button></div>
   </div>`;
 }
@@ -965,33 +992,40 @@ function renderReports(c){
 
 function renderCreate(c){
   const jobNo=nextJobNo();
-  const today=new Date().toISOString().slice(0,10);
-  c.innerHTML=`<div class="card"><div class="card-head"><h3>New Survey Job</h3><span class="status open">V2 BASE</span></div>
+  const today=isoToDMY(new Date().toISOString().slice(0,10));
+  c.innerHTML=`<div class="card"><div class="card-head"><div><h3>New Survey Job</h3><div class="muted">Direct job creation uses the same core job information as a nomination. Vessel nominations should normally start from Jobs / Nomination.</div></div><span class="status open">NEW JOB</span></div>
   <div class="formgrid">
     <div class="field"><label>Job No</label><input id="jobNo" value="${jobNo}" readonly></div>
-    <div class="field"><label>Date</label><input id="jobDate" type="date" value="${today}"></div>
-    <div class="field"><label>Job Category</label>
-      <select id="jobCategory" onchange="updateJobTypeFields()">
-        <option value="">Select Category</option>
-        <option>Bunkering</option><option>Cargo</option><option>LPG</option>
-      </select>
+    <div class="field"><label>Date (DD/MM/YYYY)</label><input id="jobDate" type="text" inputmode="numeric" maxlength="10" value="${today}" placeholder="DD/MM/YYYY" oninput="formatDMY(this)"></div>
+    <div class="field"><label>Job Category *</label>
+      <select id="jobCategory" onchange="updateJobTypeFields()"><option value="">Select Category</option><option>Bunkering</option><option>Cargo</option><option>LPG</option></select>
     </div>
-    <div class="field"><label>Work Type</label><select id="jobWorkType" onchange="updateJobTypeFields()" disabled><option>Select category first</option></select></div>
-    <div class="field"><label>Operation / Product</label><select id="jobOperation" disabled><option>Select work type first</option></select></div>
-    <div class="field"><label>Client</label><input id="jobClient" placeholder="Client name"></div>
-    <div class="field"><label>Vessel</label><input id="jobVessel" placeholder="Vessel name"></div>
+    <div class="field"><label>Work Type *</label><select id="jobWorkType" onchange="updateJobTypeFields()" disabled><option>Select category first</option></select></div>
+    <div class="field"><label>Operation / Product *</label><select id="jobOperation" disabled><option>Select work type first</option></select></div>
+    <div class="field"><label>Client *</label><select id="jobClient" onchange="updateCreateClientRef()">${nominationClientOptions('')}</select></div>
+    <div class="field"><label>Client Ref No. / EIMS Ref No.</label><input id="jobClientRef" placeholder="Client reference / EIMS reference"></div>
+    <div class="field"><label>Vessel *</label><input id="jobVessel" placeholder="Vessel name"></div>
     <div class="field"><label>IMO No.</label><input id="jobIMO" placeholder="IMO number"></div>
+    <div class="field"><label>Laycan / ETA</label><input id="jobLaycan" placeholder="DD-DD/MM/YYYY or ETA"></div>
     <div class="field"><label>Port / Terminal</label><input id="jobPort" placeholder="Port / terminal"></div>
+    <div class="field"><label>Cargo / Product</label><input id="jobCargo" placeholder="Cargo / product"></div>
+    <div class="field"><label>Quantity</label><input id="jobQuantity" placeholder="Quantity"></div>
+    <div class="field"><label>Agent</label><input id="jobAgent" placeholder="Agent"></div>
+    <div class="field"><label>Survey Type</label><input id="jobSurveyType" placeholder="Quantity / Quality / etc."></div>
+    <div class="field"><label>Cost / Cost Share</label><input id="jobCost" placeholder="100% client / agreed share"></div>
     <div class="field"><label>Surveyor</label><input id="jobSurveyor" placeholder="Surveyor name"></div>
     <div class="field"><label>PO / Reference</label><input id="jobRef" placeholder="PO / client reference"></div>
   </div>
   <div class="field"><label>Remarks</label><textarea id="jobRemarks" rows="4" placeholder="Initial job remarks"></textarea></div>
-  <div id="workflowPreview" class="card" style="background:#f7fafc;margin-top:12px">
-    <b>Workflow</b><div class="empty" style="padding:18px">Select a Job Category to begin.</div>
-  </div>
+  <div id="workflowPreview" class="card" style="background:#f7fafc;margin-top:12px"><b>Workflow</b><div class="empty" style="padding:18px">Select a Job Category to begin.</div></div>
   <button class="btn" onclick="saveNewJob()">Save Job</button>
-  <button class="btn secondary" onclick="showPage('dashboard',document.querySelector('.nav button'))">Cancel</button>
+  <button class="btn secondary" onclick="showPage('workhub',document.querySelectorAll('.nav button')[1])">Cancel</button>
   </div>`;
+}
+function updateCreateClientRef(){
+  const client=document.getElementById('jobClient'); const label=document.querySelector('#jobClient')?.closest('.field')?.nextElementSibling?.querySelector('label');
+  const selected=clientByName(client?.value||'');
+  if(label) label.textContent=selected&&String(selected.system||'').toUpperCase()==='EIMS'?'EIMS Ref No.':'Client Ref No.';
 }
 
 function updateJobTypeFields(){
@@ -1131,26 +1165,34 @@ function previewPipelineTransferReport(){
 }
 
 function saveNewJob(){
+  const date=dmyToISO(document.getElementById('jobDate').value);
+  if(!date){toast('Please enter Date as DD/MM/YYYY');return;}
   const job={
-    jobNo:consumeNextJobNo(),
-    date:document.getElementById('jobDate').value,
+    jobNo:consumeNextJobNo(), date,
     category:document.getElementById('jobCategory').value,
     workType:document.getElementById('jobWorkType').value,
     operation:document.getElementById('jobOperation').value,
-    client:document.getElementById('jobClient').value.trim(),
+    client:document.getElementById('jobClient').value,
+    clientNo:document.getElementById('jobClientRef').value.trim(),
+    eimsRefNo:document.getElementById('jobClientRef').value.trim(),
     vessel:document.getElementById('jobVessel').value.trim(),
     imo:document.getElementById('jobIMO').value.trim(),
+    laycan:document.getElementById('jobLaycan').value.trim(),
     port:document.getElementById('jobPort').value.trim(),
+    cargo:document.getElementById('jobCargo').value.trim(),
+    quantity:document.getElementById('jobQuantity').value.trim(),
+    agent:document.getElementById('jobAgent').value.trim(),
+    surveyType:document.getElementById('jobSurveyType').value.trim(),
+    cost:document.getElementById('jobCost').value.trim(),
     surveyor:document.getElementById('jobSurveyor').value.trim(),
     reference:document.getElementById('jobRef').value.trim(),
     remarks:document.getElementById('jobRemarks').value.trim(),
-    status:'Open',
-    createdAt:new Date().toISOString()
+    status:'Open', createdAt:new Date().toISOString()
   };
   if(!job.category||!job.workType||!job.operation){toast('Please select the Job Category and Work Type');return;}
-  if(!job.client||!job.vessel){toast('Please enter at least Client and Vessel');return;}
+  if(!job.client||!job.vessel){toast('Please select Client and enter Vessel');return;}
   const jobs=getJobs();jobs.push(job);saveJobs(jobs);
-  toast('Job saved successfully');
+  toast('Job saved successfully as '+job.jobNo);
   setTimeout(()=>showPage('jobs',document.querySelectorAll('.nav button')[2]),500);
 }
 
