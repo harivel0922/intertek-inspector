@@ -250,8 +250,10 @@ const SESSION_KEY='intertek_session_v1';
 const ADMIN_USERS_KEY='intertek_admin_users_v1';
 const JOB_CONTROL_KEY='intertek_job_control_v2';
 const PORTAL_KEY='intertek_customer_portals_v1';
+const CLIENT_KEY='intertek_clients_v1';
 const DEFAULT_JOB_CONTROL={prefix:'ITSPK/H',nextNo:2165,year:2026};
 const DEFAULT_PORTALS=[{client:'EQUINOR ASA',system:'EIMS',url:'',active:true}];
+const DEFAULT_CLIENTS=[{id:'EQUINOR ASA',name:'EQUINOR ASA',code:'EQUINOR',contact:'',email:'',phone:'',system:'EIMS',portalUrl:'',active:true}];
 const DEFAULT_ADMIN={username:'harivel.ganisan@intertek.com',password:'Intertek@2026',role:'Admin',name:'Harivel Ganisan'};
 
 function getUsers(){
@@ -587,6 +589,65 @@ function getPortals(){try{const x=JSON.parse(localStorage.getItem(PORTAL_KEY)||'
 function savePortals(x){localStorage.setItem(PORTAL_KEY,JSON.stringify(x))}
 function getPortalFor(client){return getPortals().find(x=>String(x.client).toLowerCase()===String(client||'').toLowerCase()&&x.active)||null}
 
+function getClients(){
+  try{
+    const x=JSON.parse(localStorage.getItem(CLIENT_KEY)||'null');
+    if(Array.isArray(x)&&x.length)return x;
+  }catch(e){}
+  localStorage.setItem(CLIENT_KEY,JSON.stringify(DEFAULT_CLIENTS));
+  return DEFAULT_CLIENTS;
+}
+function saveClients(x){localStorage.setItem(CLIENT_KEY,JSON.stringify(x))}
+function clientByName(name){return getClients().find(x=>String(x.name).toLowerCase()===String(name||'').toLowerCase()&&x.active)||null}
+function renderClients(c, editIndex=-1){
+  const clients=getClients();
+  const edit=editIndex>=0?clients[editIndex]:null;
+  c.innerHTML=`<div class="card">
+    <div class="toolbar"><div><h3>Client Register</h3><div class="muted">Register all Intertek clients here. EIMS is available only for EQUINOR ASA.</div></div><span class="status complete">${clients.filter(x=>x.active).length} ACTIVE</span></div>
+    <div class="card" style="background:#f7fafc">
+      <h3>${edit?'Edit Client':'Register New Client'}</h3>
+      <div class="formgrid" style="margin-top:10px">
+        <div class="field"><label>Client Name *</label><input id="clientName" value="${esc(edit?.name||'')}" placeholder="EQUINOR ASA"></div>
+        <div class="field"><label>Client Code</label><input id="clientCode" value="${esc(edit?.code||'')}" placeholder="EQUINOR"></div>
+        <div class="field"><label>Contact Person</label><input id="clientContact" value="${esc(edit?.contact||'')}" placeholder="Capt. Roy"></div>
+        <div class="field"><label>Client Email</label><input id="clientEmail" type="email" value="${esc(edit?.email||'')}" placeholder="client@example.com"></div>
+        <div class="field"><label>Phone</label><input id="clientPhone" value="${esc(edit?.phone||'')}" placeholder="+60 ..."></div>
+        <div class="field"><label>Customer System</label><input id="clientSystem" value="${esc(edit?.system||'')}" placeholder="Leave blank if none" ${edit?.name==='EQUINOR ASA'?'readonly':''}></div>
+        <div class="field" style="grid-column:1/-1"><label>Customer Portal URL</label><input id="clientPortalUrl" value="${esc(edit?.portalUrl||'')}" placeholder="https://..."></div>
+      </div>
+      <div class="notice" style="margin-top:10px"><b>EQUINOR ASA:</b> Customer System = <b>EIMS</b>. Other clients are registered normally and do not get EIMS fields unless a future customer system is configured.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn" onclick="saveClient(${editIndex})">${edit?'Save Changes':'Register Client'}</button>${edit?`<button class="btn secondary" onclick="renderClients(document.getElementById('content'))">Cancel</button>`:''}</div>
+    </div>
+    <div class="card"><h3>Registered Clients</h3>
+      ${clients.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Client</th><th>Code</th><th>Contact</th><th>Email</th><th>System</th><th>Status</th><th>Action</th></tr></thead><tbody>${clients.map((x,i)=>`<tr><td><b>${esc(x.name)}</b></td><td>${esc(x.code||'—')}</td><td>${esc(x.contact||'—')}</td><td>${esc(x.email||'—')}</td><td>${x.name==='EQUINOR ASA'?'<b>EIMS</b>':esc(x.system||'—')}</td><td><span class="status ${x.active?'complete':'open'}">${x.active?'Active':'Inactive'}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn secondary" onclick="renderClients(document.getElementById('content'),${i})">Edit</button><button class="btn secondary" style="border-color:#d33;color:#b21f1f" onclick="deleteClient(${i})">Delete</button></div></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No clients registered.</div>'}
+    </div>
+  </div>`;
+}
+function saveClient(index){
+  const name=document.getElementById('clientName').value.trim();
+  if(!name){toast('Please enter Client Name');return;}
+  const clients=getClients();
+  const duplicate=clients.findIndex((x,i)=>i!==index&&String(x.name).toLowerCase()===name.toLowerCase());
+  if(duplicate>=0){toast('Client already registered');return;}
+  const system=name.toUpperCase()==='EQUINOR ASA'?'EIMS':document.getElementById('clientSystem').value.trim();
+  const item={id:(index>=0&&clients[index].id)||name,name,code:document.getElementById('clientCode').value.trim(),contact:document.getElementById('clientContact').value.trim(),email:document.getElementById('clientEmail').value.trim(),phone:document.getElementById('clientPhone').value.trim(),system,portalUrl:document.getElementById('clientPortalUrl').value.trim(),active:true};
+  if(index>=0)clients[index]=item;else clients.push(item);
+  saveClients(clients);
+  if(name.toUpperCase()==='EQUINOR ASA'){
+    const portals=getPortals(); const i=portals.findIndex(x=>String(x.client).toLowerCase()==='equinor asa');
+    const portal={client:'EQUINOR ASA',system:'EIMS',url:item.portalUrl,active:true};
+    if(i>=0)portals[i]=portal;else portals.push(portal); savePortals(portals);
+  }
+  toast(index>=0?'Client updated':'Client registered');
+  renderClients(document.getElementById('content'));
+}
+function deleteClient(index){
+  const clients=getClients(); const x=clients[index]; if(!x)return;
+  if(String(x.name).toUpperCase()==='EQUINOR ASA'){alert('EQUINOR ASA cannot be deleted because it is the configured EIMS client. You can edit it instead.');return;}
+  if(!confirm('Delete client '+x.name+'? This will not delete existing jobs or nominations.'))return;
+  clients.splice(index,1); saveClients(clients); toast('Client deleted'); renderClients(document.getElementById('content'));
+}
+
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function toast(msg){
   const t=document.getElementById('toast');t.textContent=msg;t.classList.remove('hidden');
@@ -604,6 +665,7 @@ function showPage(page,btn){
   else if(page==='jobs')renderJobs(c);
   else if(page==='create')renderCreate(c);
   else if(page==='admin')renderAdmin(c);
+  else if(page==='clients')renderClients(c);
   else renderPlaceholder(c,titles[page]);
 }
 
@@ -630,15 +692,28 @@ function renderDashboard(c){
 <div class="card"><div class="card-head"><h3>Recent Jobs</h3>
     <button class="btn secondary" onclick="showPage('jobs',document.querySelectorAll('.nav button')[2])">View All</button></div>
     ${jobTable(jobs.slice().reverse().slice(0,8))}</div>
-    <div class="footer">V9 • EQUINOR LPG → EIMS Ref No. + Our Nomination/Job No. → Confirmation → Surveyor → Customer Submission workflow.</div>`;
+    <div class="footer">INTERTEK INSPECTOR • Client Register → Nomination → Job → Survey → Customer Submission. EIMS is only for EQUINOR ASA.</div>`;
 }
 
 function jobTable(jobs){
   if(!jobs.length)return '<div class="empty">No jobs created yet.</div>';
   return `<div class="table-wrap"><table class="table"><thead><tr><th>Job No</th><th>Client</th><th>Vessel</th><th>Operation</th><th>Surveyor</th><th>Customer ID</th><th>Status</th><th>Open</th></tr></thead><tbody>${jobs.map(j=>`<tr>
   <td><b>${esc(j.jobNo)}</b><div class="mini">Nomination = Job No.</div></td><td>${esc(j.client)}</td><td>${esc(j.vessel)}</td><td>${esc(j.workType)} / ${esc(j.operation)}</td><td>${esc(j.surveyor||'Not assigned')}</td><td>${esc(j.customerJobId||'—')}</td>
-  <td><span class="status ${j.status==='Completed'?'complete':'open'}">${esc(j.status)}</span></td><td><button class="btn secondary" onclick="renderJobDetail('${esc(j.jobNo)}')">Open</button></td></tr>`).join('')}</tbody></table></div>`;
+  <td><span class="status ${j.status==='Completed'?'complete':'open'}">${esc(j.status)}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn secondary" onclick="renderJobDetail('${esc(j.jobNo)}')">Open</button><button class="btn danger" onclick="deleteJob('${esc(j.jobNo)}')">Delete</button></div></td></tr>`).join('')}</tbody></table></div>`;
 }
+function deleteJob(jobNo){
+  const key=String(jobNo||'').trim();
+  if(!key)return;
+  const jobs=getJobs();
+  const idx=jobs.findIndex(j=>String(j.jobNo||'')===key);
+  if(idx<0){toast('Job not found');return;}
+  if(!confirm('Delete Intertek Job '+key+'?\n\nThis removes the job record only. The original nomination will remain in Nomination Inbox.')) return;
+  jobs.splice(idx,1);
+  saveJobs(jobs);
+  toast('Job '+key+' deleted');
+  setTimeout(()=>showPage('jobs',document.querySelectorAll('.nav button')[2]),250);
+}
+
 function renderJobs(c){
   const jobs=getJobs();
   c.innerHTML=`<div class="card"><div class="toolbar"><div><h3>All Jobs</h3><div class="muted">Confirmed nominations become Intertek jobs and continue through survey and customer submission.</div></div><button class="btn" onclick="showPage('nominations',document.querySelectorAll('.nav button')[1])">📥 Nominations</button></div>${jobTable(jobs.slice().reverse())}</div>`;
