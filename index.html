@@ -669,13 +669,13 @@ function renderClients(c, editIndex=-1){
         <div class="field"><label>Client Code</label><input id="clientCode" value="${esc(edit?.code||'')}" placeholder="EQUINOR"></div>
         <div class="field"><label>General Client Email</label><input id="clientEmail" type="email" value="${esc(edit?.email||'')}" placeholder="general@client.com"></div>
         <div class="field"><label>General Phone</label><input id="clientPhone" value="${esc(edit?.phone||'')}" placeholder="+60 ..."></div>
-        <div class="field"><label>Customer System</label><input id="clientSystem" value="${esc(edit?.system||'')}" placeholder="Leave blank if none" ${edit?.name==='EQUINOR ASA'?'readonly':''}></div>
+        <div class="field"><label>Customer System</label><input id="clientSystem" value="${esc(edit?.system||'')}" placeholder="Leave blank if none"></div>
         <div class="field"><label>Customer Portal URL</label><input id="clientPortalUrl" value="${esc(edit?.portalUrl||'')}" placeholder="https://..."></div>
       </div>
       <div class="subcard" style="margin-top:12px"><div class="toolbar"><div><h4 style="margin:0">Contact Persons</h4><div class="muted">A client can have multiple contacts. Add each person separately and select one Primary contact.</div></div><button type="button" class="btn secondary" onclick="addClientContactRow();ensurePrimaryContact()">+ Add Contact</button></div>
         <div id="clientContacts"></div>
       </div>
-      <div class="notice" style="margin-top:10px"><b>EQUINOR ASA:</b> Customer System = <b>EIMS</b>. Other clients are registered normally and do not get EIMS fields unless a future customer system is configured.</div>
+      <div class="notice" style="margin-top:10px"><b>Admin Control:</b> Admin can add, edit, or delete any client. EIMS is normally used for EQUINOR ASA, but the Admin may change the client system or remove the client when required.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn" onclick="saveClient(${editIndex})">${edit?'Save Changes':'Register Client'}</button>${edit?`<button class="btn secondary" onclick="renderClients(document.getElementById('content'))">Cancel</button>`:''}</div>
     </div>
     <div class="card"><h3>Registered Clients</h3>
@@ -712,9 +712,14 @@ function saveClient(index){
 }
 function deleteClient(index){
   const clients=getClients(); const x=clients[index]; if(!x)return;
-  if(String(x.name).toUpperCase()==='EQUINOR ASA'){alert('EQUINOR ASA cannot be deleted because it is the configured EIMS client. You can edit it instead.');return;}
   if(!confirm('Delete client '+x.name+'? This will not delete existing jobs or nominations.'))return;
-  clients.splice(index,1); saveClients(clients); toast('Client deleted'); renderClients(document.getElementById('content'));
+  const wasEquinor=String(x.name).toUpperCase()==='EQUINOR ASA';
+  clients.splice(index,1); saveClients(clients);
+  if(wasEquinor){
+    const portals=getPortals().filter(p=>String(p.client).toUpperCase()!=='EQUINOR ASA');
+    savePortals(portals);
+  }
+  toast('Client deleted'); renderClients(document.getElementById('content'));
 }
 
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
