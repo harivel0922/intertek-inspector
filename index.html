@@ -228,7 +228,7 @@ a{color:#8a6a00}
       <button onclick="showPage('vessels',this)">🚢 Vessels</button>
       <button onclick="showPage('clients',this)">👥 Clients</button>
       <button onclick="showPage('documents',this)">📄 Documents</button>
-      <button onclick="showPage('reports',this)">📑 Reports</button>
+      <button onclick="showPage('reports',this)">📝 Surveyor Report</button>
       <button onclick="showPage('admin',this)">🔐 Admin</button>
       <button onclick="showPage('settings',this)">⚙️ Settings</button>
     </div>
@@ -824,7 +824,7 @@ function toast(msg){
 function showPage(page,btn){
   document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
   if(btn)btn.classList.add('active');
-  const titles={dashboard:'Dashboard',workhub:'Jobs / Nomination',nominations:'Nomination Inbox',jobs:'All Jobs',create:'Create New Job',vessels:'Vessels',clients:'Clients',documents:'Documents',reports:'Reports',admin:'Admin Control',settings:'Settings'};
+  const titles={dashboard:'Dashboard',workhub:'Jobs / Nomination',nominations:'Nomination Inbox',jobs:'All Jobs',create:'Create New Job',vessels:'Vessels',clients:'Clients',documents:'Documents',reports:'Surveyor Report',admin:'Admin Control',settings:'Settings'};
   document.getElementById('pageTitle').textContent=titles[page]||'Dashboard';
   const c=document.getElementById('content');
   if(page==='dashboard')renderDashboard(c);
@@ -888,7 +888,7 @@ function jobTable(jobs){
   if(!jobs.length)return '<div class="empty">No jobs created yet.</div>';
   return `<div class="table-wrap"><table class="table"><thead><tr><th>Job No</th><th>Client</th><th>Vessel</th><th>Operation</th><th>Surveyor</th><th>Customer ID</th><th>Status</th><th>Open</th></tr></thead><tbody>${jobs.map(j=>`<tr>
   <td><b>${esc(j.jobNo)}</b><div class="mini">Nomination = Job No.</div></td><td>${esc(j.client)}</td><td>${esc(j.vessel)}</td><td>${esc(j.workType)} / ${esc(j.operation)}</td><td>${esc(j.surveyor||'Not assigned')}</td><td>${esc(j.customerJobId||'—')}</td>
-  <td><span class="status ${j.status==='Completed'?'complete':'open'}">${esc(j.status)}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn secondary" onclick="renderJobDetail('${esc(j.jobNo)}')">Open</button><button class="btn secondary" onclick="renderJobDetail('${esc(j.jobNo)}');setTimeout(()=>document.getElementById('reportSurveyor')?.scrollIntoView({behavior:'smooth'}),100)">Report</button><button class="btn danger" onclick="deleteJob('${esc(j.jobNo)}')">Delete</button></div></td></tr>`).join('')}</tbody></table></div>`;
+  <td><span class="status ${j.status==='Completed'?'complete':'open'}">${esc(j.status)}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn secondary" onclick="renderJobDetail('${esc(j.jobNo)}')">Open</button><button class="btn secondary" onclick="showPage('reports');renderReportCreateForm('${esc(j.jobNo)}')">Create Report</button><button class="btn danger" onclick="deleteJob('${esc(j.jobNo)}')">Delete</button></div></td></tr>`).join('')}</tbody></table></div>`;
 }
 function deleteJob(jobNo){
   const key=String(jobNo||'').trim();
@@ -968,7 +968,7 @@ function saveSurveyorReport(jobNo){
     saveReports(reports);
     updateJob(jobNo,{surveyor:surveyor,surveyStatus:'Completed',surveyorReportStatus:status,surveyorReportNo:reportNo,surveyorReportDate:reportDate,surveyorReportFile:file?file.name:(j.surveyorReportFile||'')});
     toast('Surveyor report saved');
-    renderJobDetail(jobNo);
+    renderReports(document.getElementById('content'));
   };
   if(file){
     const reader=new FileReader();
@@ -986,8 +986,18 @@ function openSurveyorReport(id){
 function renderReports(c){
   const reports=getReports().slice().reverse();
   const jobs=getJobs();
-  c.innerHTML=`<div class="card"><div class="toolbar"><div><h3>Surveyor Reports</h3><div class="muted">Upload and track surveyor reports against the same Intertek Job No. used from nomination to closure.</div></div><span class="status open">${reports.length} REPORT${reports.length===1?'':'S'}</span></div>
-  ${reports.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Job No.</th><th>Client</th><th>Vessel</th><th>Surveyor</th><th>Report No.</th><th>Report Date</th><th>File</th><th>Status</th><th>Action</th></tr></thead><tbody>${reports.map(r=>{const j=jobs.find(x=>x.jobNo===r.jobNo)||{};return `<tr><td><b>${esc(r.jobNo)}</b></td><td>${esc(j.client||'—')}</td><td>${esc(j.vessel||'—')}</td><td>${esc(r.surveyor||'—')}</td><td>${esc(r.reportNo||'—')}</td><td>${esc(isoToDMY(r.reportDate||''))}</td><td>${esc(r.fileName||'—')}</td><td><span class="status ${r.status==='Uploaded'?'complete':'open'}">${esc(r.status||'Saved')}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap">${r.fileData?`<button class="btn secondary" onclick="openSurveyorReport('${esc(r.id)}')">Open</button>`:''}<button class="btn danger" onclick="deleteSurveyorReport('${esc(r.id)}')">Delete</button></div></td></tr>`}).join('')}</tbody></table></div>`:'<div class="empty">No surveyor reports uploaded yet.</div>'}</div>`;
+  c.innerHTML=`<div class="card"><div class="toolbar"><div><h3>Surveyor Report</h3><div class="muted">Choose a saved job to create its surveyor report. The report remains linked to the same Intertek Job No.</div></div><span class="status open">${reports.length} REPORT${reports.length===1?'':'S'}</span></div>
+  <div class="subcard"><div class="field"><label>Select Job</label><select id="reportJobSelect"><option value="">Select a job to create report</option>${jobs.slice().reverse().map(j=>`<option value="${esc(j.jobNo)}">${esc(j.jobNo)} — ${esc(j.client||'No client')} — ${esc(j.operation||j.cargo||j.workType||'Job')}</option>`).join('')}</select></div><button class="btn" style="margin-top:10px" onclick="const n=document.getElementById('reportJobSelect').value;if(!n){toast('Select a job first');return}renderReportCreateForm(n)">Create Surveyor Report</button></div>
+  <h3 style="margin-top:20px">Saved Reports</h3>
+  ${reports.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Job No.</th><th>Client</th><th>Surveyor</th><th>Report No.</th><th>Report Date</th><th>File</th><th>Status</th><th>Action</th></tr></thead><tbody>${reports.map(r=>{const j=jobs.find(x=>x.jobNo===r.jobNo)||{};return `<tr><td><b>${esc(r.jobNo)}</b></td><td>${esc(j.client||'—')}</td><td>${esc(r.surveyor||'—')}</td><td>${esc(r.reportNo||'—')}</td><td>${esc(isoToDMY(r.reportDate||''))}</td><td>${esc(r.fileName||'—')}</td><td><span class="status ${r.status==='Uploaded'?'complete':'open'}">${esc(r.status||'Saved')}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap">${r.fileData?`<button class="btn secondary" onclick="openSurveyorReport('${esc(r.id)}')">Open</button>`:''}<button class="btn secondary" onclick="renderReportCreateForm('${esc(r.jobNo)}')">New Report</button><button class="btn danger" onclick="deleteSurveyorReport('${esc(r.id)}')">Delete</button></div></td></tr>`}).join('')}</tbody></table></div>`:'<div class="empty">No surveyor reports uploaded yet.</div>'}</div>`;
+}
+function renderReportCreateForm(jobNo){
+  const c=document.getElementById('content');
+  const j=getJobs().find(x=>String(x.jobNo)===String(jobNo));
+  if(!j){toast('Job not found');return}
+  document.getElementById('pageTitle').textContent='Create Surveyor Report';
+  c.innerHTML=`<div class="card"><div class="toolbar"><div><h3>Create Surveyor Report</h3><div class="muted">Job: <b>${esc(j.jobNo)}</b> · Client: ${esc(j.client||'—')} · ${esc(j.operation||j.cargo||j.workType||'')}</div></div><button class="btn secondary" onclick="showPage('reports')">Back to Surveyor Reports</button></div>
+  <div class="subcard"><div class="formgrid"><div class="field"><label>Intertek Job No.</label><input value="${esc(j.jobNo)}" readonly></div><div class="field"><label>Surveyor</label><input id="reportSurveyor" value="${esc(j.surveyor||'')}" placeholder="Surveyor name"></div><div class="field"><label>Report No.</label><input id="reportNo" value="" placeholder="Report number"></div><div class="field"><label>Report Date (DD/MM/YYYY)</label><input id="reportDate" type="text" inputmode="numeric" maxlength="10" placeholder="DD/MM/YYYY" oninput="formatDMY(this)"></div><div class="field"><label>Status</label><select id="reportStatus"><option>Uploaded</option><option>Pending</option></select></div><div class="field" style="grid-column:1/-1"><label>Surveyor Report File</label><input id="reportFile" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"></div></div><button class="btn" onclick="saveSurveyorReport('${esc(j.jobNo)}')">Save Surveyor Report</button></div></div>`;
 }
 
 function renderCreate(c){
@@ -1203,22 +1213,10 @@ function saveNewJob(){
   if(!job.category||!job.workType||!job.operation){toast('Please select the Job Category and Work Type');return;}
   if(!job.client){toast('Please select a Client');return;}
   const jobs=getJobs();jobs.push(job);saveJobs(jobs);
-  toast('Job saved successfully as '+job.jobNo+' — opening Surveyor Report');
-  openSurveyorReportForJob(job.jobNo);
+  toast('Job saved successfully as '+job.jobNo);
+  renderJobs(document.getElementById('content'));
 }
 
-function openSurveyorReportForJob(jobNo){
-  renderJobDetail(jobNo);
-  const openSection=()=>{
-    const section=document.getElementById('surveyorReportSection');
-    if(section){
-      section.scrollIntoView({behavior:'smooth',block:'start'});
-      const first=section.querySelector('#reportSurveyor');
-      if(first) first.focus({preventScroll:true});
-    }
-  };
-  requestAnimationFrame(()=>requestAnimationFrame(openSection));
-}
 
 function renderAdmin(c){
   const users=getUsers();
