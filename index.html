@@ -876,7 +876,7 @@ function renderDashboard(c){
 <div style="display:grid;gap:7px;font-size:13px">
   <div><b>Bunkering</b> → Bunkering</div>
   <div><b>Cargo</b> → Chemical / UCO</div>
-  <div><b>LPG</b> → Discharge / Loading / Pipeline Transfer / ITT / Month-End Inventory</div>
+  <div><b>LPG</b> → Pipeline Transfer / ITT / Month-End Inventory</div>
 </div></div>
 <div class="card"><div class="card-head"><h3>Recent Jobs</h3>
     <button class="btn secondary" onclick="showPage('jobs',document.querySelectorAll('.nav button')[2])">View All</button></div>
@@ -1032,7 +1032,7 @@ function updateJobTypeFields(){
   const op=document.getElementById('jobOperation');
   work.innerHTML=''; op.innerHTML=''; work.disabled=false; op.disabled=true;
   let workTypes=[];
-  if(category==='LPG') workTypes=['Discharge','Loading','Pipeline Transfer','ITT','Month-End Inventory'];
+  if(category==='LPG') workTypes=['Pipeline Transfer','ITT','Month-End Inventory'];
   if(category==='Marine') workTypes=['Bunkering','Chemical','UCO','Other Marine Survey'];
   work.innerHTML='<option value="">Select Work Type</option>'+workTypes.map(x=>`<option>${x}</option>`).join('');
   work.onchange=updateOperationOptions;
@@ -1049,8 +1049,6 @@ function updateOperationOptions(){
   if(category==='Marine' && work==='Chemical') options=['Discharge – Chemical'];
   if(category==='Marine' && work==='UCO') options=['Loading – UCO'];
   if(category==='Marine' && work==='Other Marine Survey') options=['Other Marine Survey'];
-  if(category==='LPG' && work==='Discharge') options=['Pressurized LPG Mixture'];
-  if(category==='LPG' && work==='Loading') options=['Pressurized LPG Mixture'];
   if(category==='LPG' && work==='Pipeline Transfer') options=['LPG'];
   if(category==='LPG' && work==='ITT') options=['LPG'];
   if(category==='LPG' && work==='Month-End Inventory') options=['LPG'];
@@ -1066,8 +1064,6 @@ function renderWorkflowPreview(category,work,operation){
   if(category==='Marine') items.push('Marine job details','Client / reference','Port or terminal','Surveyor assignment','Surveyor report');
   if(category==='Marine' && work==='Bunkering') items.push('Bunkering details');
   if(category==='Marine' && (work==='Chemical'||work==='UCO')) items.push('Cargo details','Sampling','Quantity / measurement data','Required report documents');
-  if(category==='LPG' && work==='Discharge') items.push('Vessel / shore details','Before discharge','After discharge','Quantity calculations','Sampling','Time Sheet','COQ / final documents');
-  if(category==='LPG' && work==='Loading') items.push('Vessel / shore details','Before loading','After loading','Quantity calculations','Sampling','Time Sheet','COQ / final documents');
   if(category==='LPG' && work==='Pipeline Transfer') items.push('Batching order instructions','Terminal outturn report','COQ (paper blend)','P/L readiness check','Source tank / line','Transfer timing','Receiving tank','Shore tank calculations','Quantity comparison','Time Sheet','NOD / final documents');
   if(category==='LPG' && work==='ITT') items.push('Source tank(s)','Receiving tank(s)','Before / after data','Quantity calculations','COQ','Final documents');
   if(category==='LPG' && work==='Month-End Inventory') items.push('Inventory date','Tank list','Opening / closing quantities','Quantity calculations','Inventory report');
