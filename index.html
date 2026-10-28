@@ -225,10 +225,12 @@ a{color:#8a6a00}
       <button class="active" onclick="showPage('dashboard',this)">📊 Dashboard</button>
       <button onclick="showPage('workhub',this)">📥 Jobs / Nomination</button>
       <button onclick="showPage('jobs',this)">📋 All Jobs</button>
+      <button onclick="showPage('reports',this)">📝 Surveyor Doc</button>
+      <button onclick="showPage('coq',this)">📑 COQ</button>
+      <button onclick="showPage('sourcedoc',this)">📂 Source of Doc</button>
       <button onclick="showPage('vessels',this)">🚢 Vessels</button>
       <button onclick="showPage('clients',this)">👥 Clients</button>
       <button onclick="showPage('documents',this)">📄 Documents</button>
-      <button onclick="showPage('reports',this)">📝 Surveyor Report</button>
       <button onclick="showPage('admin',this)">🔐 Admin</button>
       <button onclick="showPage('settings',this)">⚙️ Settings</button>
     </div>
@@ -824,7 +826,7 @@ function toast(msg){
 function showPage(page,btn){
   document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
   if(btn)btn.classList.add('active');
-  const titles={dashboard:'Dashboard',workhub:'Jobs / Nomination',nominations:'Nomination Inbox',jobs:'All Jobs',create:'Create New Job',vessels:'Vessels',clients:'Clients',documents:'Documents',reports:'Surveyor Report',admin:'Admin Control',settings:'Settings'};
+  const titles={dashboard:'Dashboard',workhub:'Jobs / Nomination',nominations:'Nomination Inbox',jobs:'All Jobs',create:'Create New Job',vessels:'Vessels',clients:'Clients',documents:'Documents',reports:'Surveyor Doc',coq:'COQ',sourcedoc:'Source of Doc',admin:'Admin Control',settings:'Settings'};
   document.getElementById('pageTitle').textContent=titles[page]||'Dashboard';
   const c=document.getElementById('content');
   if(page==='dashboard')renderDashboard(c);
@@ -835,6 +837,8 @@ function showPage(page,btn){
   else if(page==='admin')renderAdmin(c);
   else if(page==='clients')renderClients(c);
   else if(page==='reports')renderReports(c);
+  else if(page==='coq')renderJobDocuments(c,'coq');
+  else if(page==='sourcedoc')renderJobDocuments(c,'sourcedoc');
   else renderPlaceholder(c,titles[page]);
 }
 
@@ -1268,6 +1272,34 @@ function changeAdminPassword(){
 }
 function saveJobNumberControl(){const prefix=document.getElementById('jobPrefix').value.trim()||'ITSPK/H',nextNo=Math.max(1,parseInt(document.getElementById('jobNextNo').value||'1',10)),year=parseInt(document.getElementById('jobYear').value||new Date().getFullYear(),10);saveJobControl({prefix,nextNo,year});toast('Job number control saved: '+nextJobNo());renderAdmin(document.getElementById('content'))}
 function savePortalLink(){const client=document.getElementById('portalClient').value.trim(),url=document.getElementById('portalUrl').value.trim();if(!client||!url){toast('Enter customer and portal URL');return}const x=getPortals();const i=x.findIndex(p=>p.client.toLowerCase()===client.toLowerCase());if(i>=0)x[i]={client,url,active:true};else x.push({client,url,active:true});savePortals(x);toast('Customer portal saved');renderAdmin(document.getElementById('content'))}
+
+const JOB_DOC_KEY='intertek_job_documents_v1';
+function getJobDocuments(){try{const a=JSON.parse(localStorage.getItem(JOB_DOC_KEY)||'[]');return Array.isArray(a)?a:[]}catch(e){return []}}
+function saveJobDocuments(a){localStorage.setItem(JOB_DOC_KEY,JSON.stringify(a))}
+function renderJobDocuments(c,kind){
+  const isCoq=kind==='coq', title=isCoq?'COQ':'Source of Doc', key=isCoq?'COQ':'SOURCE';
+  const docs=getJobDocuments().filter(d=>d.kind===key).slice().reverse(), jobs=getJobs();
+  c.innerHTML=`<div class="card"><div class="toolbar"><div><h3>${title}</h3><div class="muted">Create and attach ${isCoq?'COQ / paper-blend documents':'source documents and supporting files'} to an existing Intertek Job No.</div></div><span class="status open">${docs.length} FILE${docs.length===1?'':'S'}</span></div>
+  <div class="subcard"><h3>Create ${title}</h3><div class="formgrid">
+  <div class="field"><label>Intertek Job No. *</label><select id="${kind}Job"><option value="">Select job</option>${jobs.slice().reverse().map(j=>`<option value="${esc(j.jobNo)}">${esc(j.jobNo)} — ${esc(j.client||'No client')} — ${esc(j.operation||j.cargo||j.workType||'Job')}</option>`).join('')}</select></div>
+  <div class="field"><label>${isCoq?'COQ No. / Reference':'Document Title / Reference'} *</label><input id="${kind}Ref" placeholder="${isCoq?'COQ reference':'Document title or reference'}"></div>
+  <div class="field"><label>Date (DD/MM/YYYY)</label><input id="${kind}Date" type="text" inputmode="numeric" maxlength="10" placeholder="DD/MM/YYYY" oninput="formatDMY(this)"></div>
+  <div class="field"><label>Status</label><select id="${kind}Status"><option>Uploaded</option><option>Pending</option></select></div>
+  <div class="field" style="grid-column:1/-1"><label>${isCoq?'COQ / Paper Blend File':'Source Document File'} *</label><input id="${kind}File" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.eml,.msg"></div>
+  <div class="field" style="grid-column:1/-1"><label>Notes</label><textarea id="${kind}Notes" placeholder="Optional notes"></textarea></div>
+  </div><button class="btn" onclick="saveJobDocument('${kind}')">Save ${title}</button></div>
+  <h3 style="margin-top:18px">Saved ${title} Records</h3>
+  ${docs.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Job No.</th><th>Reference</th><th>Date</th><th>File</th><th>Status</th><th>Action</th></tr></thead><tbody>${docs.map(d=>`<tr><td><b>${esc(d.jobNo)}</b></td><td>${esc(d.ref||'—')}</td><td>${esc(d.date||'—')}</td><td>${esc(d.fileName||'—')}</td><td>${esc(d.status||'Saved')}</td><td><div style="display:flex;gap:6px;flex-wrap:wrap">${d.fileData?`<button class="btn secondary" onclick="openJobDocument('${esc(d.id)}')">Open</button>`:''}<button class="btn danger" onclick="deleteJobDocument('${esc(d.id)}','${kind}')">Delete</button></div></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No documents saved yet.</div>'}</div>`;
+}
+function saveJobDocument(kind){
+  const isCoq=kind==='coq', key=isCoq?'COQ':'SOURCE', jobNo=document.getElementById(kind+'Job').value, ref=document.getElementById(kind+'Ref').value.trim(), date=document.getElementById(kind+'Date').value.trim(), status=document.getElementById(kind+'Status').value, notes=document.getElementById(kind+'Notes').value.trim(), file=document.getElementById(kind+'File').files[0];
+  if(!jobNo){toast('Select an Intertek Job No.');return} if(!ref){toast('Enter document reference/title');return} if(!file&&status==='Uploaded'){toast('Choose a document file');return}
+  const finish=fileData=>{const all=getJobDocuments();all.push({id:key+'-'+Date.now(),kind:key,jobNo,ref,date,status,notes,fileName:file?file.name:'',fileType:file?file.type:'',fileData:fileData||'',createdAt:new Date().toISOString()});saveJobDocuments(all);toast(titleForDoc(key)+' saved');renderJobDocuments(document.getElementById('content'),kind)};
+  if(file){const reader=new FileReader();reader.onload=()=>finish(String(reader.result||''));reader.onerror=()=>toast('Unable to read file');reader.readAsDataURL(file)}else finish('');
+}
+function titleForDoc(key){return key==='COQ'?'COQ':'Source document'}
+function openJobDocument(id){const d=getJobDocuments().find(x=>String(x.id)===String(id));if(!d)return;if(!d.fileData){toast('No saved file content');return}const w=window.open('about:blank','_blank');if(w){w.document.write('<title>'+esc(d.fileName||d.ref||'Document')+'</title><iframe src="'+d.fileData.replace(/"/g,'&quot;')+'" style="width:100%;height:100vh;border:0"></iframe>');w.document.close()}}
+function deleteJobDocument(id,kind){if(!confirm('Delete this document record?'))return;saveJobDocuments(getJobDocuments().filter(x=>String(x.id)!==String(id)));toast('Document deleted');renderJobDocuments(document.getElementById('content'),kind)}
 
 function renderPlaceholder(c,title){
   c.innerHTML=`<div class="card"><h3>${esc(title)}</h3><div class="empty">
